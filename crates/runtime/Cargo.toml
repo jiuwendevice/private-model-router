@@ -1,0 +1,32 @@
+[package]
+name = "openjiuwen-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "L4 运行层：Router 门面、装配、决策循环与训练调度"
+
+[features]
+default = [
+    "algo-passthrough",
+    "algo-weighted",
+    "algo-rule_cascade",
+    "algo-signal",
+    "algo-ensemble",
+]
+algo-passthrough = ["openjiuwen-algorithms/algo-passthrough"]
+algo-weighted = ["openjiuwen-algorithms/algo-weighted"]
+algo-rule_cascade = ["openjiuwen-algorithms/algo-rule_cascade"]
+algo-signal = ["openjiuwen-algorithms/algo-signal"]
+algo-ensemble = ["openjiuwen-algorithms/algo-ensemble"]
+
+[dependencies]
+openjiuwen-protocol.workspace = true
+openjiuwen-state.workspace = true
+openjiuwen-algorithms = { workspace = true, default-features = false }
+serde.workspace = true
+toml.workspace = true
+
+[[test]]
+name = "react_agent"
+path = "../../tests/react_agent.rs"

@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/protocol",
+    "crates/state",
+    "crates/algorithms",
+    "crates/runtime",
+    "crates/py",
+]
+default-members = [
+    "crates/protocol",
+    "crates/state",
+    "crates/algorithms",
+    "crates/runtime",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+openjiuwen-protocol = { path = "crates/protocol" }
+openjiuwen-state = { path = "crates/state" }
+openjiuwen-algorithms = { path = "crates/algorithms", default-features = false }
+openjiuwen-runtime = { path = "crates/runtime" }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+pyo3 = { version = "0.23", features = ["abi3-py38"] }

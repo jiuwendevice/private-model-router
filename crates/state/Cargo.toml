@@ -1,0 +1,19 @@
+[package]
+name = "openjiuwen-state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "L2 状态管理：StateProvider 契约 + memory / remote 实现"
+
+[features]
+default = []
+service = []
+
+[dependencies]
+openjiuwen-protocol.workspace = true
+
+[[bin]]
+name = "openjiuwen-state-service"
+path = "src/service/main.rs"
+required-features = ["service"]

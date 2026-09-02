@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "openjiuwen"
+version = "0.1.0"
+description = "openjiuwen-router Python 门面（PyO3 / maturin）"
+requires-python = ">=3.8"
+
+[tool.maturin]
+manifest-path = "crates/py/Cargo.toml"
+python-source = "python"
+module-name = "openjiuwen._openjiuwen"
+features = ["pyo3/extension-module"]
+
+[tool.pytest.ini_options]
+pythonpath = ["python"]

@@ -1,0 +1,10 @@
+# 端侧 profile：状态在本进程内存。算法与 state 均在宿主进程内。
+algorithm = "passthrough"
+
+[state]
+backend = "memory"
+ttl_secs = 300
+max_entries = 1024
+
+[targets]
+models = ["local-default"]

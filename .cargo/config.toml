@@ -1,0 +1,4 @@
+# 本机默认工具链是 stable-x86_64-pc-windows-gnu（与 rust_demo_mod_04 相同）。
+# PATH 上的 LLVM-MinGW gcc 没有 libgcc，需走 rustup 自带的 self-contained 链接器。
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-self-contained=yes"]

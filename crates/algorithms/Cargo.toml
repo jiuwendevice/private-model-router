@@ -1,0 +1,26 @@
+[package]
+name = "openjiuwen-algorithms"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "L3 算法层：纯函数 Algorithm / Evolving 契约与内置实现"
+
+[features]
+default = [
+    "algo-passthrough",
+    "algo-weighted",
+    "algo-rule_cascade",
+    "algo-signal",
+    "algo-ensemble",
+    "evolving-mf",
+]
+algo-passthrough = []
+algo-weighted = []
+algo-rule_cascade = []
+algo-signal = []
+algo-ensemble = []
+evolving-mf = []
+
+[dependencies]
+openjiuwen-protocol.workspace = true

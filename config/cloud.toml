@@ -1,0 +1,15 @@
+# 云侧 profile：远程状态。算法仍是同一份 Rust 二进制逻辑。
+algorithm = "passthrough"
+
+[state]
+backend = "remote"
+endpoint = "http://127.0.0.1:50051"
+timeout_ms = 5
+
+[targets]
+models = ["cloud-default", "cloud-fallback"]
+
+[[evolving]]
+name = "mf-weights"
+kind = "MfWeights"
+slot = "state.mf_weights"

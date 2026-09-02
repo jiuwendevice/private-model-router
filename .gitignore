@@ -1,0 +1,21 @@
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Python / maturin
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.so
+*.pyd
+*.dll
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+*.html

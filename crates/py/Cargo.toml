@@ -1,0 +1,16 @@
+[package]
+name = "openjiuwen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "L5 PyO3 绑定：把 Rust 内核导出为原生扩展 _openjiuwen"
+
+[lib]
+name = "_openjiuwen"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+openjiuwen-protocol.workspace = true
+openjiuwen-runtime = { workspace = true }
+pyo3 = { workspace = true }

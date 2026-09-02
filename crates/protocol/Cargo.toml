@@ -1,0 +1,9 @@
+[package]
+name = "openjiuwen-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "L1 协议层：跨模块可序列化类型，零依赖"
+
+[dependencies]
