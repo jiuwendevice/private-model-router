@@ -84,15 +84,16 @@ models = ["alpha", "beta"]
     assert "python_cost_aware" in decision.reasoning
 
 
-def test_state_client_constructs():
-    client = openjiuwen.StateClient("http://127.0.0.1:9", timeout_ms=5)
-    assert client.endpoint == "http://127.0.0.1:9"
+def test_remote_state_from_profile():
     router = Router.from_config(
         {
             "algorithm": "passthrough",
-            "state": {"backend": "remote", "endpoint": "http://ignored"},
+            "state": {
+                "backend": "remote",
+                "endpoint": "http://127.0.0.1:9",
+                "timeout_ms": 5,
+            },
             "targets": {"models": ["only"]},
         },
-        state=client,
     )
     assert router.route_sync({}).selected_model_id == "only"

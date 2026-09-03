@@ -6,18 +6,17 @@
 mod adapter;
 mod convert;
 mod error;
+mod state_adapter;
 mod types;
 
 use std::sync::Arc;
-use std::time::Duration;
 
-use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::PyAnyMethods;
 
 use openjiuwen_protocol::TargetSet;
 use openjiuwen_runtime::{registry, KvCacheCoordinator, Router};
-use openjiuwen_state::{RemoteState, StateProvider};
+use openjiuwen_state::StateProvider;
 
 use crate::convert::{extract_hint, extract_request, profile_from_obj};
 use crate::error::to_py;
@@ -25,39 +24,6 @@ use crate::types::{
     PyFeedback, PyFeedbackStats, PyMessage, PyModelSelection, PyRequestMetadata, PyRouteContext,
     PyRouteHint, PyRouteRequest, PyRoutingKey, PyStateView,
 };
-
-/// 云侧远程状态客户端，对应 `RemoteState`。可注入 Router 覆盖 profile。
-#[pyclass(name = "StateClient")]
-#[derive(Clone)]
-pub struct PyStateClient {
-    inner: Arc<RemoteState>,
-}
-
-#[pymethods]
-impl PyStateClient {
-    #[new]
-    #[pyo3(signature = (endpoint, timeout_ms=5))]
-    fn new(endpoint: String, timeout_ms: u64) -> PyResult<Self> {
-        if endpoint.trim().is_empty() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "StateClient requires endpoint",
-            ));
-        }
-        Ok(Self {
-            inner: Arc::new(RemoteState::new(endpoint, Duration::from_millis(timeout_ms))),
-        })
-    }
-
-    #[getter]
-    fn endpoint(&self) -> &str {
-        &self.inner.endpoint
-    }
-
-    #[getter]
-    fn timeout_ms(&self) -> u64 {
-        self.inner.timeout.as_millis() as u64
-    }
-}
 
 struct PyKvCoordinator {
     cb: Py<PyAny>,
@@ -80,7 +46,8 @@ pub struct PyRouter {
 impl PyRouter {
     /// `from_config(path | dict, *, state=None)`。dict 便于配置中心注入。
     #[staticmethod]
-    #[pyo3(signature = (config, *, state=None))] //config 是必填参数；state 是可选参数；* 表示 state 必须使用关键字传递；
+    #[pyo3(signature = (config, *, state=None))] // config 是必填参数；state 是可选参数；* 表示 state 必须使用关键字传递；
+    // PyAny表示 config 是一个任意 Python 对象，在python中支持配置文件和字典两种形式；
     fn from_config(config: Bound<'_, PyAny>, state: Option<Bound<'_, PyAny>>) -> PyResult<Self> {
         assemble(profile_from_obj(&config)?, state)
     }
@@ -148,18 +115,19 @@ fn assemble(
     };
     let state: Arc<dyn StateProvider> = match state {
         Some(obj) => extract_state(&obj)?,
-        None => Router::state_from_profile(&profile).map_err(to_py)?,
+        None => match state_adapter::lookup(&profile.state.backend) {
+            Some(s) => s,
+            None => Router::state_from_profile(&profile).map_err(to_py)?,
+        },
     };
     Ok(PyRouter {
         inner: Router::from_parts(algorithm, state, TargetSet::new(profile.targets.models)),
     })
 }
 
+/// 任意实现 `snapshot` / `report` 的 Python `StateProvider`。
 fn extract_state(obj: &Bound<'_, PyAny>) -> PyResult<Arc<dyn StateProvider>> {
-    if let Ok(client) = obj.extract::<PyRef<PyStateClient>>() {
-        return Ok(client.inner.clone() as Arc<dyn StateProvider>);
-    }
-    Err(PyTypeError::new_err("state must be openjiuwen.StateClient"))
+    state_adapter::adapter_from_obj(obj.clone())
 }
 
 fn extract_feedback_dict(obj: &Bound<'_, PyAny>) -> PyResult<openjiuwen_protocol::Feedback> {
@@ -219,11 +187,11 @@ fn _openjiuwen(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRequestMetadata>()?;
     m.add_class::<PyRoutingKey>()?;
     m.add_class::<PyFeedback>()?;
-    m.add_class::<PyStateClient>()?;
     m.add_class::<PyStateView>()?;
     m.add_class::<PyFeedbackStats>()?;
     m.add_class::<PyRouteContext>()?;
     m.add_function(wrap_pyfunction!(adapter::register_algorithm, m)?)?;
+    m.add_function(wrap_pyfunction!(state_adapter::register_state, m)?)?;
     m.add("Decision", m.getattr("ModelSelection")?)?;
     m.add("OK", "ok")?;
     m.add("OVERFLOW", "overflow")?;

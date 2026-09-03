@@ -51,7 +51,7 @@ impl Router {
         ))
     }
 
-    /// 按 profile 装配 state 槽。供 PyO3 在注入 StateClient 或 Python 算法时复用。
+    /// 按 profile 装配 state 槽。供 PyO3 在注入 Python `StateProvider` 前复用。
     pub fn state_from_profile(profile: &RouterProfile) -> Result<Arc<dyn StateProvider>, RouterError> {
         match profile.state.backend.as_str() {
             "memory" => {
@@ -70,7 +70,7 @@ impl Router {
         }
     }
 
-    /// 用已构造的算法与 state 装配。PyO3 可注入 Python 算法或 StateClient。
+    /// 用已构造的算法与 state 装配。PyO3 可注入 Python 算法或 Python `StateProvider`。
     pub fn from_parts(
         algorithm: Box<dyn AlgorithmProvider>,
         state: Arc<dyn StateProvider>,

@@ -14,6 +14,7 @@ Python 宿主只看北向门面：`from_config` 装配，`route` 取 `ModelSelec
 - **跨边界只传值**：北向载荷是 `RouteRequest`、`ModelSelection`、`Feedback`；`RouteContext` / `StateView` / `Decision` 留在 Rust（`Decision` 投影为 `ModelSelection` 再出界）。
 - **语言差异被门面吸收**：Python 侧 `await router.route` 只是包一层；内核 `route` 仍是同步纯函数求值。
 - **算法可反向占用槽位**：`register_algorithm` 把 Python `AlgorithmProvider` 包装成 Rust trait，与 Rust 算法同一注册表、同一决策循环。
+- **状态同样可反向占用槽位**：`register_state` / `state=` 把 Python `StateProvider` 包装成 Rust trait；内置 `memory` / `remote` 仍由 profile 装配。
 
 ## 仓库结构
 
@@ -22,10 +23,11 @@ crates/py/                          # 本 crate：编出 _openjiuwen
 ├── Cargo.toml
 ├── README.md
 └── src/
-    ├── lib.rs            # pymodule；PyRouter / StateClient / Kv 回调
+    ├── lib.rs            # pymodule；PyRouter / Kv 回调
     ├── types.rs          # 协议类型的 pyclass
     ├── convert.rs        # dict / pyclass → 协议结构
     ├── adapter.rs        # Python 算法 → AlgorithmProvider trait
+    ├── state_adapter.rs  # Python 状态 → StateProvider trait
     └── error.rs          # RouterError → Python 异常
 
 python/openjiuwen/                  # 用户面包（maturin python-source）
@@ -33,6 +35,7 @@ python/openjiuwen/                  # 用户面包（maturin python-source）
 ├── _openjiuwen.pyi       # 扩展类型桩（跳转用）
 ├── py.typed              # PEP 561 typed 包标记
 ├── algorithm_provider.py # 公共契约 AlgorithmProvider
+├── state_provider.py     # 公共契约 StateProvider
 ├── discover.py           # 扫描并列子包并默认安装（不引用算法名）
 ├── test_algo/            # 外部团队 demo（CostAwareAlgorithm）
 └── test_algo2/           # 外部团队 demo（LastAvailableAlgorithm）
@@ -63,7 +66,7 @@ maturin develop
 cargo check -p openjiuwen
 ```
 
-未构建扩展时，`openjiuwen.AlgorithmProvider` 与 `openjiuwen.test_algo` 仍可导入；`Router.from_config` 会提示先 `maturin develop`。
+未构建扩展时，`openjiuwen.AlgorithmProvider`、`openjiuwen.StateProvider` 与 `openjiuwen.test_algo` 仍可导入；`Router.from_config` 会提示先 `maturin develop`。
 
 ## 北向接口（Python 宿主）
 
@@ -73,7 +76,7 @@ cargo check -p openjiuwen
 
 | Python | 对应内部 | 说明 |
 |--------|----------|------|
-| `Router.from_config(path \| dict, *, state=None)` | `Router::from_config` / `from_profile` | dict 便于配置中心注入；`state=` 可传入 `StateClient` 覆盖 profile |
+| `Router.from_config(path \| dict, *, state=None)` | `Router::from_config` / `from_profile` | dict 便于配置中心注入；`state=` 可传入自定义 `StateProvider` |
 | `Router.from_toml(text)` | `Router::from_toml` | 测试或下发文本 |
 | `await router.route(request, hint=None)` | `Router::route` | 云侧 async 门面；内核同步。返回 `ModelSelection` |
 | `router.route_sync(request, hint=None)` | 同上 | 不要 event loop 时用 |
@@ -82,9 +85,9 @@ cargo check -p openjiuwen
 | `router.algorithm_name()` | `Router::algorithm_name` | 当前算法槽稳定名 |
 | `router.with_kv_coordinator(cb)` | `KvCacheCoordinator::on_switch` | 保存 Python 回调；`route` 尚未触发切换 |
 | `router.replace_algorithm(obj)` | `Router::replace_algorithm` | 热替换算法槽（通常是 `AlgorithmProvider` 子类） |
-| `router.replace_state(state)` | `Router::replace_state` | 热替换 state 槽，目前接受 `StateClient` |
-| `StateClient(endpoint, timeout_ms=5)` | `openjiuwen_state::RemoteState` | 显式远程客户端；注入 `from_config(..., state=...)` |
+| `router.replace_state(state)` | `Router::replace_state` | 热替换 state 槽：Python `StateProvider` |
 | `register_algorithm(obj)` | `PyAlgorithmAdapter` | 按 `obj.name` 写入进程内注册表；覆盖同名随包算法。`from_config` 优先于 Rust 内置 |
+| `register_state(obj)` | `PyStateAdapter` | 按 `obj.name` 写入进程内注册表；`state.backend` 命中后优先于 memory/remote |
 
 `request` 可以是 `RouteRequest` 或 dict（`messages` / `metadata` 或顶层 `session_id`+`agent_id` / `exclusions`）。`hint` 可以是 `RouteHint`、`str`（当作 `cache_affinity`）、dict 或 `None`。
 
@@ -114,6 +117,7 @@ cargo check -p openjiuwen
 | `RouteContext` | `targets: list[str]`、`view`、`seed`；传给 `AlgorithmProvider.decide` |
 | `StateView` | `affinity` / `exclusions` / `stats`；可为空，算法必须能降级 |
 | `openjiuwen.AlgorithmProvider` | 供稿基类：实现 `name` + `decide(request, ctx)` |
+| `openjiuwen.StateProvider` | 供稿基类：实现 `name` + `snapshot(key)` / `report(feedback)` |
 | `openjiuwen.check_purity` | 同输入双调用，辅助验收纯函数 |
 | `openjiuwen.test_algo.cost_aware.CostAwareAlgorithm` | 随包 demo：无参默认安装；可再 `register_algorithm` 覆盖成本表 |
 | `custom_test_algo.PreferFirstAlgorithm` | 包外示例：宿主自己 `register_algorithm`，discover 扫不到 |
@@ -220,7 +224,7 @@ python tests/react_agent.py
 
 ### `lib.rs`
 
-`#[pymodule] _openjiuwen`：注册 `Router`、`StateClient`、协议 pyclass、`register_algorithm`。`Decision` 是 `ModelSelection` 的模块别名。
+`#[pymodule] _openjiuwen`：注册 `Router`、协议 pyclass、`register_algorithm`、`register_state`。`Decision` 是 `ModelSelection` 的模块别名。
 
 ### `types.rs` / `convert.rs`
 

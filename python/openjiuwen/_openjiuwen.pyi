@@ -36,11 +36,18 @@ class RouteRequest:
 
 class FeedbackStats:
     sample_count: int
+    def __init__(self, sample_count: int = ...) -> None: ...
 
 class StateView:
     affinity: Optional[str]
     exclusions: List[str]
     stats: FeedbackStats
+    def __init__(
+        self,
+        affinity: Optional[str] = ...,
+        exclusions: Optional[List[str]] = ...,
+        stats: Optional[FeedbackStats] = ...,
+    ) -> None: ...
 
 class RouteContext:
     targets: List[str]
@@ -90,13 +97,6 @@ class Feedback:
         outcome: str = ...,
     ) -> Feedback: ...
 
-class StateClient:
-    def __init__(self, endpoint: str, timeout_ms: int = ...) -> None: ...
-    @property
-    def endpoint(self) -> str: ...
-    @property
-    def timeout_ms(self) -> int: ...
-
 class Router:
     @staticmethod
     def from_config(config: Union[str, dict], *, state: Any = ...) -> Router: ...
@@ -110,6 +110,7 @@ class Router:
     def replace_state(self, state: Any) -> None: ...
 
 def register_algorithm(obj: Any) -> str: ...
+def register_state(obj: Any) -> str: ...
 
 OK: str
 OVERFLOW: str

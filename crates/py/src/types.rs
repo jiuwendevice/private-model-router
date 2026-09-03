@@ -201,6 +201,15 @@ pub struct PyFeedbackStats {
     pub sample_count: u64,
 }
 
+#[pymethods]
+impl PyFeedbackStats {
+    #[new]
+    #[pyo3(signature = (sample_count=0))]
+    fn new(sample_count: u64) -> Self {
+        Self { sample_count }
+    }
+}
+
 impl From<&FeedbackStats> for PyFeedbackStats {
     fn from(s: &FeedbackStats) -> Self {
         Self {
@@ -215,6 +224,35 @@ pub struct PyStateView {
     pub affinity: Option<String>,
     pub exclusions: Vec<String>,
     pub stats: PyFeedbackStats,
+}
+
+#[pymethods]
+impl PyStateView {
+    #[new]
+    #[pyo3(signature = (affinity=None, exclusions=None, stats=None))]
+    fn new(
+        affinity: Option<String>,
+        exclusions: Option<Vec<String>>,
+        stats: Option<PyFeedbackStats>,
+    ) -> Self {
+        Self {
+            affinity,
+            exclusions: exclusions.unwrap_or_default(),
+            stats: stats.unwrap_or_default(),
+        }
+    }
+}
+
+impl PyStateView {
+    pub fn native(&self) -> StateView {
+        StateView {
+            affinity: self.affinity.clone(),
+            exclusions: self.exclusions.clone(),
+            stats: FeedbackStats {
+                sample_count: self.stats.sample_count,
+            },
+        }
+    }
 }
 
 impl From<&StateView> for PyStateView {
@@ -355,6 +393,21 @@ impl PyFeedback {
 }
 
 impl PyFeedback {
+    pub fn from_native(fb: &Feedback) -> Self {
+        Self {
+            key: PyRoutingKey::from(&fb.key),
+            selected_model_id: fb.selected_model_id.clone(),
+            outcome: match fb.outcome {
+                openjiuwen_protocol::Outcome::Ok => "ok".into(),
+                openjiuwen_protocol::Outcome::Overflow => "overflow".into(),
+                openjiuwen_protocol::Outcome::Unavailable => "unavailable".into(),
+                openjiuwen_protocol::Outcome::Rejected => "rejected".into(),
+            },
+            latency_ms: fb.latency_ms,
+            cache_valid: fb.cache_valid,
+        }
+    }
+
     pub fn native(&self) -> PyResult<Feedback> {
         Ok(Feedback {
             key: self.key.native(),

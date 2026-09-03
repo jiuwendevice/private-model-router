@@ -1,7 +1,7 @@
 """openjiuwen — 云侧 Python 门面。
 
 Router / 协议类型由 PyO3 扩展 `_openjiuwen` 重导出；扩展未构建时包仍可导入，
-`AlgorithmProvider` 可独立使用。`discover` 扫描并列子包中的随包 Python 算法，
+`AlgorithmProvider` 与 `StateProvider` 可独立使用。`discover` 扫描并列子包中的随包 Python 算法，
 `import openjiuwen` 时自动写入 Rust 槽。
 
 `route` / `report` 在 Python 侧是 async（蓝图云侧门面）；同步内核仍在 Rust。
@@ -12,11 +12,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Union
 
 from .algorithm_provider import Algorithm, AlgorithmProvider, check_purity
+from .state_provider import StateProvider
 
 __all__ = [
     "AlgorithmProvider",
     "Algorithm",
     "check_purity",
+    "StateProvider",
     "Router",
     "Decision",
     "ModelSelection",
@@ -26,10 +28,10 @@ __all__ = [
     "RequestMetadata",
     "RoutingKey",
     "Feedback",
-    "StateClient",
     "StateView",
     "RouteContext",
     "register_algorithm",
+    "register_state",
     "Outcome",
 ]
 
@@ -53,9 +55,9 @@ if TYPE_CHECKING:
         RouteHint,
         RouteRequest,
         RoutingKey,
-        StateClient,
         StateView,
         register_algorithm,
+        register_state,
         Router as NativeRouter,
     )
 else:
@@ -69,9 +71,9 @@ else:
             RouteHint,
             RouteRequest,
             RoutingKey,
-            StateClient,
             StateView,
             register_algorithm,
+            register_state,
             Router as NativeRouter,
         )
     except ImportError:  # pragma: no cover
@@ -84,9 +86,9 @@ else:
         RouteHint = None  # type: ignore[misc, assignment]
         RouteRequest = None  # type: ignore[misc, assignment]
         RoutingKey = None  # type: ignore[misc, assignment]
-        StateClient = None  # type: ignore[misc, assignment]
         StateView = None  # type: ignore[misc, assignment]
         register_algorithm = None  # type: ignore[misc, assignment]
+        register_state = None  # type: ignore[misc, assignment]
 
 
 Decision = ModelSelection

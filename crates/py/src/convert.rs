@@ -6,13 +6,13 @@ use pyo3::types::{PyDict, PyList, PySequence, PyString, PyType};
 
 use openjiuwen_algorithms::RouteContext;
 use openjiuwen_protocol::{
-    Message, Outcome, RequestMetadata, RouteHint, RouteRequest, RouterError, RoutingKey,
+    Message, Outcome, RequestMetadata, RouteHint, RouteRequest, RouterError, RoutingKey, StateView,
 };
 use openjiuwen_runtime::config::{RouterProfile, StateConfig, TargetsConfig};
 
 use crate::types::{
     PyMessage, PyModelSelection, PyRequestMetadata, PyRouteContext, PyRouteHint, PyRouteRequest,
-    PyRoutingKey,
+    PyRoutingKey, PyStateView,
 };
 
 pub fn parse_outcome(raw: &str) -> PyResult<Outcome> {
@@ -234,51 +234,114 @@ pub fn py_route_request(py: Python<'_>, req: &RouteRequest) -> PyResult<Py<PyRou
     Bound::new(py, PyRouteRequest::from_native(req)).map(|b| b.unbind())
 }
 
+pub fn extract_state_view(obj: &Bound<'_, PyAny>) -> PyResult<StateView> {
+    if obj.is_none() {
+        return Ok(StateView::empty());
+    }
+    if let Ok(view) = obj.extract::<PyRef<PyStateView>>() {
+        return Ok(view.native());
+    }
+    if let Ok(dict) = obj.downcast::<PyDict>() {
+        let affinity = opt_dict_str(dict, "affinity")?;
+        let exclusions = match dict.get_item("exclusions")? {
+            Some(v) if !v.is_none() => v.extract()?,
+            _ => Vec::new(),
+        };
+        let sample_count = match dict.get_item("stats")? {
+            Some(stats) if !stats.is_none() => {
+                if let Ok(d) = stats.downcast::<PyDict>() {
+                    opt_dict_u64(d, "sample_count")?.unwrap_or(0)
+                } else if stats.hasattr("sample_count")? {
+                    stats.getattr("sample_count")?.extract()?
+                } else {
+                    0
+                }
+            }
+            _ => 0,
+        };
+        return Ok(StateView {
+            affinity,
+            exclusions,
+            stats: openjiuwen_protocol::FeedbackStats { sample_count },
+        });
+    }
+    if obj.hasattr("exclusions")? {
+        let affinity = if obj.hasattr("affinity")? {
+            let v = obj.getattr("affinity")?;
+            if v.is_none() {
+                None
+            } else {
+                Some(v.extract()?)
+            }
+        } else {
+            None
+        };
+        return Ok(StateView {
+            affinity,
+            exclusions: obj.getattr("exclusions")?.extract()?,
+            stats: openjiuwen_protocol::FeedbackStats { sample_count: 0 },
+        });
+    }
+    Err(PyValueError::new_err(
+        "snapshot() must return StateView or dict{affinity, exclusions}",
+    ))
+}
+
+// profile_from_obj 函数用于从 Python 对象中提取路由配置信息，并转换为 Rust 的 RouterProfile 结构体。
 pub fn profile_from_obj(obj: &Bound<'_, PyAny>) -> PyResult<RouterProfile> {
+    // 如果 obj 是一个字符串，则调用 RouterProfile::from_path 函数从路径中加载配置文件。
     if let Ok(path) = obj.extract::<String>() {
         return RouterProfile::from_path(path).map_err(|e| match e {
             RouterError::Config(msg) => PyValueError::new_err(format!("config: {msg}")),
             other => PyValueError::new_err(other.to_string()),
         });
     }
+    // 如果 obj 是一个字典，则调用 profile_from_dict 函数从字典中提取配置信息。
     let dict = obj
         .downcast::<PyDict>()
         .map_err(|_| PyValueError::new_err("from_config expects a path string or dict"))?;
     profile_from_dict(dict)
 }
 
+// profile_from_dict 函数用于从字典中提取路由配置信息，并转换为 Rust 的 RouterProfile 结构体。
 pub fn profile_from_dict(dict: &Bound<'_, PyDict>) -> PyResult<RouterProfile> {
+    // 提取 algorithm 配置项。
     let algorithm = dict
         .get_item("algorithm")?
         .ok_or_else(|| PyValueError::new_err("profile requires algorithm"))?
         .extract::<String>()?;
+    // 提取 state 配置项。
     let state = match dict.get_item("state")? {
         Some(s) if !s.is_none() => {
+            // 将 state 配置项转换为字典。
             let sd = s
                 .downcast::<PyDict>()
                 .map_err(|_| PyValueError::new_err("state must be a dict"))?;
+            // 将 state 配置项转换为 Rust 的 StateConfig 结构体。
             StateConfig {
-                backend: dict_str(sd, "backend")?
+                backend: dict_str(sd, "backend")? // 提取 backend 配置项。  
                     .ok_or_else(|| PyValueError::new_err("state.backend is required"))?,
-                ttl_secs: opt_dict_u64(sd, "ttl_secs")?,
-                max_entries: opt_dict_usize(sd, "max_entries")?,
-                endpoint: opt_dict_str(sd, "endpoint")?,
-                timeout_ms: opt_dict_u64(sd, "timeout_ms")?,
+                ttl_secs: opt_dict_u64(sd, "ttl_secs")?, // 提取 ttl_secs 配置项。
+                max_entries: opt_dict_usize(sd, "max_entries")?, // 提取 max_entries 配置项。
+                endpoint: opt_dict_str(sd, "endpoint")?, // 提取 endpoint 配置项。
+                timeout_ms: opt_dict_u64(sd, "timeout_ms")?, // 提取 timeout_ms 配置项。
             }
         }
-        _ => {
+        _ => { // 如果 state 配置项不存在，则返回错误。
             return Err(PyValueError::new_err("profile requires state"));
         }
     };
+    // 提取 targets 配置项。
     let models = match dict.get_item("targets")? {
-        Some(t) if !t.is_none() => extract_models(&t)?,
-        _ => Vec::new(),
+        Some(t) if !t.is_none() => extract_models(&t)?, // 提取 models 配置项。
+        _ => Vec::new(), // 如果 targets 配置项不存在，则返回空列表。
     };
+    // 创建 RouterProfile 结构体。
     Ok(RouterProfile {
         algorithm,
         state,
-        targets: TargetsConfig { models },
-        evolving: Vec::new(),
+        targets: TargetsConfig { models }, // 设置 targets 配置项。
+        evolving: Vec::new(), // 设置 evolving 配置项。 
     })
 }
 

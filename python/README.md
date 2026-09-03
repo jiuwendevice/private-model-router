@@ -7,6 +7,7 @@ python/
 ├── openjiuwen/                 # 正式包根：项目面向 Python 的公开接口
 │   ├── __init__.py            # Router / ModelSelection / 注册入口
 │   ├── algorithm_provider.py  # Python 算法契约（AlgorithmProvider）
+│   ├── state_provider.py      # Python 状态契约（StateProvider）
 │   ├── discover.py            # 扫描子包并默认安装，不引用具体算法名
 │   ├── test_algo/             # 算法团队 demo（CostAwareAlgorithm）
 │   ├── test_algo2/            # 算法团队 demo（LastAvailableAlgorithm）
