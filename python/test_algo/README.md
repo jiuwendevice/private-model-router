@@ -17,8 +17,8 @@ register_algorithm(CostAwareAlgorithm(...))
 
 ```bash
 maturin develop
-python python/test/run_python_algorithm.py
-pytest python/test/test_python_algorithm.py -v
+python python/test_algo/run_python_algorithm.py
+pytest python/test_algo/test_python_algorithm.py -v
 ```
 
 算法名必须与 TOML 中的 `algorithm` 一致。Python 算法只能做同步纯计算：

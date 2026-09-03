@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from openjiuwen.algorithm.algorithm_provider import AlgorithmProvider
-from openjiuwen.algorithm.test_algorithm.passthrough import Passthrough
+from openjiuwen.algorithm_provider import AlgorithmProvider
+from .passthrough import Passthrough
 
 
 class Weighted(AlgorithmProvider):

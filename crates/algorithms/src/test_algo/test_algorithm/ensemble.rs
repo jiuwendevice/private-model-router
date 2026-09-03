@@ -1,13 +1,13 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::algorithm::{AlgorithmProvider, RouteContext};
+use crate::test_algo::{AlgorithmProvider, RouteContext};
 
-/// 加权选择。骨架阶段退化为直通，权重表后续注入。
-pub struct Weighted;
+/// 集成/混合。骨架阶段退化为直通。
+pub struct Ensemble;
 
-impl AlgorithmProvider for Weighted {
+impl AlgorithmProvider for Ensemble {
     fn name(&self) -> &str {
-        "weighted"
+        "ensemble"
     }
 
     fn decide(&self, request: &RouteRequest, ctx: &RouteContext) -> Result<Decision, RouterError> {
@@ -15,7 +15,7 @@ impl AlgorithmProvider for Weighted {
         let model = available.first().ok_or(RouterError::NoTarget)?;
         Ok(Decision::answer(
             model,
-            "weighted: stub, falls back to first target",
+            "ensemble: stub, falls back to first target",
         ))
     }
 }

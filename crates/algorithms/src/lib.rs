@@ -1,8 +1,10 @@
-//! L3 算法层。契约在 [`algorithm`] / [`evolving`]；
-//! 示意实现在 [`algorithm::test_algorithm`] / [`evolving::test_evolving`]。
+//! L3 算法层。测试算法及自演进实现统一放在 [`test_algo`]。
 
-pub mod algorithm;
-pub mod evolving;
+pub mod test_algo;
 
-pub use algorithm::{AlgorithmProvider, RouteContext};
-pub use evolving::{Artifact, EvolvingProvider, TrainingBatch};
+pub use test_algo::evolving::{Artifact, EvolvingProvider, TrainingBatch};
+pub use test_algo::{AlgorithmProvider, RouteContext};
+
+// 保留原模块路径，避免下游升级目录布局时同时发生 API 破坏。
+pub use test_algo as algorithm;
+pub use test_algo::evolving;

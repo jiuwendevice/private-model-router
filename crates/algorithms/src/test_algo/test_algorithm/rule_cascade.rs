@@ -1,6 +1,6 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::algorithm::{AlgorithmProvider, RouteContext};
+use crate::test_algo::{AlgorithmProvider, RouteContext};
 
 /// 规则级联。骨架阶段退化为直通。
 pub struct RuleCascade;

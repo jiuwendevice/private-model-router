@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from cost_aware_algorithm import CostAwareAlgorithm
+from test_algo.cost_aware_algorithm import CostAwareAlgorithm
 from openjiuwen import register_algorithm
 from openjiuwen.contrib import check_purity
 

@@ -1,13 +1,13 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::algorithm::{AlgorithmProvider, RouteContext};
+use crate::test_algo::{AlgorithmProvider, RouteContext};
 
-/// 集成/混合。骨架阶段退化为直通。
-pub struct Ensemble;
+/// 信号驱动。骨架阶段退化为直通。
+pub struct Signal;
 
-impl AlgorithmProvider for Ensemble {
+impl AlgorithmProvider for Signal {
     fn name(&self) -> &str {
-        "ensemble"
+        "signal"
     }
 
     fn decide(&self, request: &RouteRequest, ctx: &RouteContext) -> Result<Decision, RouterError> {
@@ -15,7 +15,7 @@ impl AlgorithmProvider for Ensemble {
         let model = available.first().ok_or(RouterError::NoTarget)?;
         Ok(Decision::answer(
             model,
-            "ensemble: stub, falls back to first target",
+            "signal: stub, falls back to first target",
         ))
     }
 }

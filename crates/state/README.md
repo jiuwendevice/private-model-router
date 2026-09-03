@@ -35,7 +35,7 @@ crates/state/
         └── main.rs                   # openjiuwen-state-service 入口
 ```
 
-布局与 `crates/algorithms/src/algorithm/` 对称：契约文件叫 `*_provider.rs`，内置实现放 `test_*`。
+布局与 `crates/algorithms/src/test_algo/` 对称：契约文件叫 `*_provider.rs`，内置实现放 `test_*`。
 
 ## 快速开始
 

@@ -65,7 +65,7 @@ def test_async_route_and_report():
 
 
 def test_python_algorithm_register_and_replace():
-    from openjiuwen.algorithm.test_algorithm import Passthrough
+    from test_algo import Passthrough
 
     openjiuwen.register_algorithm(Passthrough())
     router = Router.from_toml(

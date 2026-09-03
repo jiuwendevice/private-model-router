@@ -1,6 +1,6 @@
 //! 算法池：候选目录 · 单槽选一 · 可热插拔。
 
-use openjiuwen_algorithms::algorithm::test_algorithm as samples;
+use openjiuwen_algorithms::test_algo::test_algorithm as samples;
 use openjiuwen_algorithms::AlgorithmProvider;
 use openjiuwen_protocol::RouterError;
 

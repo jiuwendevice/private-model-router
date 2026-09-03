@@ -2,7 +2,7 @@
 
 ## 简介
 
-`crates/py` 是 openjiuwen-router 的 **L5 宿主集成层**：把 L4 `runtime::Router` 编成 Python 原生扩展 `_openjiuwen`。本 crate **不含路由逻辑**——只做类型转换与同步调用。云侧 async、包名 `openjiuwen`、算法 SDK 在仓库 `python/openjiuwen/`。
+`crates/py` 是 openjiuwen-router 的 **L5 宿主集成层**：把 L4 `runtime::Router` 编成 Python 原生扩展 `_openjiuwen`。本 crate **不含路由逻辑**——只做类型转换与同步调用。云侧 async 与算法 SDK 在 `python/openjiuwen/`，Python 测试算法在 `python/test_algo/`。
 
 Python 宿主只看北向门面：`from_config` 装配，`route` 取 `ModelSelection`，自己调模型，再 `report`。决策与执行仍然分离；流量不经过本层。
 
@@ -34,7 +34,9 @@ python/openjiuwen/                  # 用户面包（maturin python-source）
 ├── contrib.py            # PyAlgorithm SDK（供稿，不是内置算法的家）
 ├── state.py              # StateClientConfig
 ├── react_agent.py        # 最小 Python ReAct 宿主示例
-└── algorithm/            # 公共契约 AlgorithmProvider；示意实现在 test_algorithm/
+└── algorithm_provider.py # 公共契约 AlgorithmProvider
+
+python/test_algo/                   # Python 测试算法；经 register_algorithm 回接 Rust
 ```
 
 `pyproject.toml` 把两边打进同一个 wheel：`module-name = "openjiuwen._openjiuwen"`。
@@ -60,7 +62,7 @@ maturin develop
 cargo check -p openjiuwen
 ```
 
-未构建扩展时，`openjiuwen.algorithm` 与 `openjiuwen.contrib` 仍可导入；`Router.from_config` 会提示先 `maturin develop`。
+未构建扩展时，`openjiuwen.AlgorithmProvider` 与 `openjiuwen.contrib` 仍可导入；`Router.from_config` 会提示先 `maturin develop`。
 
 ## 北向接口（Python 宿主）
 
@@ -111,10 +113,10 @@ cargo check -p openjiuwen
 |-------------|------|
 | `RouteContext` | `targets: list[str]`、`view`、`seed`；传给 `PyAlgorithm.decide` |
 | `StateView` | `affinity` / `exclusions` / `stats`；可为空，算法必须能降级 |
-| `openjiuwen.algorithm.AlgorithmProvider` | 供稿基类：实现 `name` + `decide(request, ctx)` |
-| `openjiuwen.algorithm.check_purity` | 同输入双调用，辅助验收纯函数 |
+| `openjiuwen.AlgorithmProvider` | 供稿基类：实现 `name` + `decide(request, ctx)` |
+| `openjiuwen.check_purity` | 同输入双调用，辅助验收纯函数 |
 | `openjiuwen.contrib.PyAlgorithm` | `AlgorithmProvider` 的别名，兼容旧导入 |
-| `openjiuwen.algorithm.test_algorithm` | 示意实现（passthrough 等）；`REGISTRY` 在此组装 |
+| `test_algo` | 测试实现（passthrough 等）；`REGISTRY` 在此组装 |
 
 Python 算法必须守纯函数：不 I/O、不调模型、随机性只用 `ctx.seed`。端侧没有解释器，这些实现只随 wheel 走云侧。
 
@@ -177,7 +179,7 @@ await router.report(Feedback.ok(
 
 ```python
 from openjiuwen import Feedback, Outcome, RouteRequest, RequestMetadata, Router, register_algorithm
-from openjiuwen.algorithm.test_algorithm import Passthrough
+from test_algo import Passthrough
 
 register_algorithm(Passthrough())  # 按名占用算法槽；profile 里 algorithm = "passthrough"
 

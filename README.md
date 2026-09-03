@@ -37,7 +37,9 @@ model-router/
 │   ├── algorithms/                 # L3 算法：AlgorithmProvider trait + 内置实现（feature 门控）
 │   ├── runtime/                    # L4 装配与运行：Router 门面
 │   └── py/                         # L5 PyO3 绑定（cdylib `_openjiuwen`）
-├── python/openjiuwen/              # 云侧 Python 门面 + 内置 Python 算法
+├── python/
+│   ├── openjiuwen/                 # 云侧 Python 门面与算法契约
+│   └── test_algo/                  # Python 测试算法（经 PyO3 回接 Rust）
 ├── config/
 │   ├── edge.toml                   # 端侧：memory 进程内
 │   └── cloud.toml                  # 云侧：remote state
@@ -88,7 +90,7 @@ cargo build -p openjiuwen-runtime
 maturin develop
 ```
 
-安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。`StateClient` 可覆盖 profile 的 remote state。`register_algorithm` 把 `contrib.PyAlgorithm` 注册进与 Rust 算法同一槽位。扩展未构建时，内置 Python 算法与 `contrib.PyAlgorithm` 仍可单独导入。
+安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。`StateClient` 可覆盖 profile 的 remote state。`register_algorithm` 把 `contrib.PyAlgorithm` 注册进与 Rust 算法同一槽位。扩展未构建时，`test_algo` 与 `contrib.PyAlgorithm` 仍可单独导入。
 
 ```python
 import openjiuwen
@@ -228,15 +230,15 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### 算法层（`openjiuwen-algorithms`）
 
-`AlgorithmProvider::decide(request, ctx) -> Decision` 是算法团队的唯一接入点。内置实现按 feature 门控：`algo-passthrough`、`algo-weighted`、`algo-rule_cascade`、`algo-signal`、`algo-ensemble`。配置选 Python 版时关闭对应 feature，避免双份入产物。`EvolvingProvider::fit` 是在线自演进纯计算契约（骨架在 `evolving/test_evolving`）。
+`AlgorithmProvider::decide(request, ctx) -> Decision` 是算法团队的唯一接入点。内置实现按 feature 门控：`algo-passthrough`、`algo-weighted`、`algo-rule_cascade`、`algo-signal`、`algo-ensemble`。配置选 Python 版时关闭对应 feature，避免双份入产物。`EvolvingProvider::fit` 是在线自演进纯计算契约（骨架在 `test_algo/evolving/test_evolving`）。
 
 ### 运行层（`openjiuwen-runtime`）
 
 宿主只看 `Router`。`from_config` 装配两个插件槽；`route` 驱动 snapshot → decide；`report` 转发 state。`Trigger` / `TrainingJob` 类型已占位，尚未挂到装配路径。
 
-### Python 门面（`crates/py` + `python/openjiuwen`）
+### Python 门面（`crates/py` + `python/openjiuwen` + `python/test_algo`）
 
-PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python 算法包装成 `AlgorithmProvider` trait。`contrib.PyAlgorithm` 是 `algorithm.AlgorithmProvider` 的别名；示意实现在 `algorithm.test_algorithm`。
+PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python 算法包装成 `AlgorithmProvider` trait。`contrib.PyAlgorithm` 是 `openjiuwen.AlgorithmProvider` 的别名；测试实现在顶层包 `test_algo`。
 
 ## 测试与检查
 

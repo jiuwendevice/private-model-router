@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::evolving::{Artifact, EvolvingProvider, TrainingBatch};
+use crate::test_algo::evolving::{Artifact, EvolvingProvider, TrainingBatch};
 
 pub struct MfWeights;
 
