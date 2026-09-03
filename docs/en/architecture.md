@@ -875,3 +875,4 @@ This avoids half-updated states when modifying multiple related slots inside one
 | Python bundled-algorithm discovery | `python/openjiuwen/discover.py` |
 | Python extension type stubs | `python/openjiuwen/_openjiuwen.pyi` |
 | End-to-end example hosts | `tests/react_agent.rs`, `tests/react_agent.py` |
+| Host integration examples | `examples/python_integration.py`, `examples/rust_integration/` |

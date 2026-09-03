@@ -875,4 +875,5 @@ let artifact = job.run_once(&MyTrainer);
 | Python 随包算法扫描 | `python/openjiuwen/discover.py` |
 | Python 扩展类型存根 | `python/openjiuwen/_openjiuwen.pyi` |
 | 端到端示例宿主 | `tests/react_agent.rs`, `tests/react_agent.py` |
+| 宿主集成示例 | `examples/python_integration.py`, `examples/rust_integration/` |
 
