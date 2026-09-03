@@ -5,10 +5,10 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from openjiuwen.contrib import PyAlgorithm
+from openjiuwen import AlgorithmProvider
 
 
-class CostAwareAlgorithm(PyAlgorithm):
+class CostAwareAlgorithm(AlgorithmProvider):
     """从 Rust runtime 提供的候选目标中选择成本最低者。"""
 
     name = "python_cost_aware"

@@ -4,7 +4,7 @@ import pytest  # type: ignore[import-not-found]
 
 pytest.importorskip("openjiuwen._openjiuwen")
 
-from openjiuwen.react_agent import ReActAgent, build_router
+from react_agent import ReActAgent, build_router
 
 
 def test_react_agent_routes_retries_and_answers():

@@ -13,7 +13,7 @@ Python 宿主只看北向门面：`from_config` 装配，`route` 取 `ModelSelec
 - **内核仍是 Rust**：端侧 crate 直连、云侧经本层，同一套 `Router` / 协议类型。
 - **跨边界只传值**：北向载荷是 `RouteRequest`、`ModelSelection`、`Feedback`；`RouteContext` / `StateView` / `Decision` 留在 Rust（`Decision` 投影为 `ModelSelection` 再出界）。
 - **语言差异被门面吸收**：Python 侧 `await router.route` 只是包一层；内核 `route` 仍是同步纯函数求值。
-- **算法可反向占用槽位**：`register_algorithm` 把 `PyAlgorithm` 包装成 `AlgorithmProvider` trait，与 Rust 算法同一注册表、同一决策循环。
+- **算法可反向占用槽位**：`register_algorithm` 把 Python `AlgorithmProvider` 包装成 Rust trait，与 Rust 算法同一注册表、同一决策循环。
 
 ## 仓库结构
 
@@ -31,12 +31,11 @@ crates/py/                          # 本 crate：编出 _openjiuwen
 python/openjiuwen/                  # 用户面包（maturin python-source）
 ├── __init__.py           # 北向重导出 + async Router 门面
 ├── _openjiuwen.pyi       # 扩展类型桩（跳转用）
-├── contrib.py            # PyAlgorithm SDK（供稿，不是内置算法的家）
-├── state.py              # StateClientConfig
-├── react_agent.py        # 最小 Python ReAct 宿主示例
+├── py.typed              # PEP 561 typed 包标记
 └── algorithm_provider.py # 公共契约 AlgorithmProvider
 
 python/test_algo/                   # CostAwareAlgorithm：register_algorithm 回接 Rust
+tests/react_agent.py                # 最小 Python ReAct 宿主示例
 ```
 
 `pyproject.toml` 把两边打进同一个 wheel：`module-name = "openjiuwen._openjiuwen"`。
@@ -62,7 +61,7 @@ maturin develop
 cargo check -p openjiuwen
 ```
 
-未构建扩展时，`openjiuwen.AlgorithmProvider` 与 `openjiuwen.contrib` 仍可导入；`Router.from_config` 会提示先 `maturin develop`。
+未构建扩展时，`openjiuwen.AlgorithmProvider` 仍可导入；`Router.from_config` 会提示先 `maturin develop`。
 
 ## 北向接口（Python 宿主）
 
@@ -80,10 +79,9 @@ cargo check -p openjiuwen
 | `router.report_sync(feedback)` | 同上 | 同步转发 state |
 | `router.algorithm_name()` | `Router::algorithm_name` | 当前算法槽稳定名 |
 | `router.with_kv_coordinator(cb)` | `KvCacheCoordinator::on_switch` | 保存 Python 回调；`route` 尚未触发切换 |
-| `router.replace_algorithm(obj)` | `Router::replace_algorithm` | 热替换算法槽（通常是 `PyAlgorithm`） |
+| `router.replace_algorithm(obj)` | `Router::replace_algorithm` | 热替换算法槽（通常是 `AlgorithmProvider` 子类） |
 | `router.replace_state(state)` | `Router::replace_state` | 热替换 state 槽，目前接受 `StateClient` |
 | `StateClient(endpoint, timeout_ms=5)` | `openjiuwen_state::RemoteState` | 显式远程客户端；注入 `from_config(..., state=...)` |
-| `StateClientConfig(endpoint, timeout_ms=5).client()` | 同上 | 纯 Python 配置对象，`.client()` 才构造扩展类型 |
 | `register_algorithm(obj)` | `PyAlgorithmAdapter` | 按 `obj.name` 写入进程内注册表；`from_config` 优先于 Rust 内置 |
 
 `request` 可以是 `RouteRequest` 或 dict（`messages` / `metadata` 或顶层 `session_id`+`agent_id` / `exclusions`）。`hint` 可以是 `RouteHint`、`str`（当作 `cache_affinity`）、dict 或 `None`。
@@ -111,11 +109,10 @@ cargo check -p openjiuwen
 
 | Python 类型 | 说明 |
 |-------------|------|
-| `RouteContext` | `targets: list[str]`、`view`、`seed`；传给 `PyAlgorithm.decide` |
+| `RouteContext` | `targets: list[str]`、`view`、`seed`；传给 `AlgorithmProvider.decide` |
 | `StateView` | `affinity` / `exclusions` / `stats`；可为空，算法必须能降级 |
 | `openjiuwen.AlgorithmProvider` | 供稿基类：实现 `name` + `decide(request, ctx)` |
 | `openjiuwen.check_purity` | 同输入双调用，辅助验收纯函数 |
-| `openjiuwen.contrib.PyAlgorithm` | `AlgorithmProvider` 的别名，兼容旧导入 |
 | `test_algo.CostAwareAlgorithm` | Python 回接示例：按配置成本选目标 |
 
 Python 算法必须守纯函数：不 I/O、不调模型、随机性只用 `ctx.seed`。端侧没有解释器，这些实现只随 wheel 走云侧。
@@ -215,7 +212,7 @@ second = router.route_sync(req)  # 同一把 RoutingKey，下一轮不再选 fas
 端到端 ReAct 宿主（与 `tests/react_agent.rs` 同一剧本）：
 
 ```bash
-python -m openjiuwen.react_agent
+python tests/react_agent.py
 ```
 
 ## 主要模块
@@ -243,7 +240,7 @@ cargo check -p openjiuwen
 pytest tests/test_package.py              # 不需要扩展（算法 SDK）
 pytest tests/test_native_router.py        # 需要已安装的 _openjiuwen
 pytest tests/test_react_agent.py
-python -m openjiuwen.react_agent
+python tests/react_agent.py
 ```
 
 协议类型本身的词汇表与北向契约见 [`../protocol/README.md`](../protocol/README.md)。Rust 宿主不经本层，见 [`../runtime/README.md`](../runtime/README.md)。

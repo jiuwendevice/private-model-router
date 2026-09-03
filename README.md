@@ -90,7 +90,7 @@ cargo build -p openjiuwen-runtime
 maturin develop
 ```
 
-安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。`StateClient` 可覆盖 profile 的 remote state。`register_algorithm` 把 `contrib.PyAlgorithm` 注册进与 Rust 算法同一槽位。扩展未构建时，`test_algo` 与 `contrib.PyAlgorithm` 仍可单独导入。
+安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。`StateClient` 可覆盖 profile 的 remote state。`register_algorithm` 把 `AlgorithmProvider` 子类注册进与 Rust 算法同一槽位。扩展未构建时，`test_algo` 与 `AlgorithmProvider` 仍可单独导入。
 
 ```python
 import openjiuwen
@@ -184,11 +184,11 @@ models = ["local-default"]
 每一次模型调用前 `route`，调用后 `report`。模型由 mock 扮演，不发真实网络。循环是 Thought → Action → Observation → Final Answer。
 
 - Rust 宿主：[`tests/react_agent.rs`](tests/react_agent.rs)
-- Python 宿主（经 `python/openjiuwen` 调同一套 Rust `Router`）：[`python/openjiuwen/react_agent.py`](python/openjiuwen/react_agent.py)
+- Python 宿主（经 `python/openjiuwen` 调同一套 Rust `Router`）：[`tests/react_agent.py`](tests/react_agent.py)
 
 ```bash
 cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
-python -m openjiuwen.react_agent
+python tests/react_agent.py
 pytest tests/test_react_agent.py
 ```
 
@@ -238,7 +238,7 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### Python 门面（`crates/py` + `python/openjiuwen` + `python/test_algo`）
 
-PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python 算法包装成 `AlgorithmProvider` trait。`contrib.PyAlgorithm` 是 `openjiuwen.AlgorithmProvider` 的别名；测试实现在顶层包 `test_algo`。
+PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python `AlgorithmProvider` 包装成 Rust trait。测试实现在顶层包 `test_algo`。
 
 ## 测试与检查
 

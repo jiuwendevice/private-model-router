@@ -1,7 +1,7 @@
 """openjiuwen — 云侧 Python 门面。
 
 Router / 协议类型由 PyO3 扩展 `_openjiuwen` 重导出；扩展未构建时包仍可导入，
-内置 Python 算法与 contrib SDK 可独立使用。
+`AlgorithmProvider` 可独立使用。
 
 `route` / `report` 在 Python 侧是 async（蓝图云侧门面）；同步内核仍在 Rust。
 """
@@ -11,11 +11,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Union
 
 from .algorithm_provider import Algorithm, AlgorithmProvider, check_purity
-from . import contrib
-from .state import StateClientConfig
 
 __all__ = [
-    "contrib",
     "AlgorithmProvider",
     "Algorithm",
     "check_purity",
@@ -29,7 +26,6 @@ __all__ = [
     "RoutingKey",
     "Feedback",
     "StateClient",
-    "StateClientConfig",
     "StateView",
     "RouteContext",
     "register_algorithm",

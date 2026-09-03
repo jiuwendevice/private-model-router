@@ -6,7 +6,9 @@
 python/
 ├── openjiuwen/                 # 正式包根：项目面向 Python 的公开接口
 │   ├── __init__.py            # Router / ModelSelection / 注册入口
-│   └── algorithm_provider.py  # Python 算法契约（AlgorithmProvider）
+│   ├── algorithm_provider.py  # Python 算法契约（AlgorithmProvider）
+│   ├── _openjiuwen.pyi        # PyO3 扩展类型桩
+│   └── py.typed               # PEP 561 typed 包标记
 └── test_algo/                  # Python 测试算法与回接 Rust 的示例
     ├── cost_aware_algorithm.py
     └── run_python_algorithm.py

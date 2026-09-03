@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest  # type: ignore[import-not-found]
 
 from test_algo import CostAwareAlgorithm
-from openjiuwen.contrib import check_purity
+from openjiuwen import check_purity
 
 
 class _Context:

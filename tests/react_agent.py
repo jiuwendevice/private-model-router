@@ -6,7 +6,7 @@
 
 与 `tests/react_agent.rs` 同一条剧本：
 
-    python -m openjiuwen.react_agent
+    python tests/react_agent.py
 """
 
 from __future__ import annotations
