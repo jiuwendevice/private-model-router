@@ -1,0 +1,11 @@
+[package]
+name = "rust-integration-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+openjiuwen-runtime = { path = "../../crates/runtime" }
+
+# 独立 mini crate：不并入父 workspace，单独 cargo run 即可。
+[workspace]
