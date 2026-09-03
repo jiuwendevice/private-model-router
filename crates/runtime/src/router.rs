@@ -5,9 +5,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use openjiuwen_algorithms::Algorithm;
+use openjiuwen_algorithms::AlgorithmProvider;
 use openjiuwen_protocol::{Decision, Feedback, RouteHint, RouteRequest, RouterError, TargetSet};
-use openjiuwen_state::{MemoryState, RemoteState, StateProvider};
+use openjiuwen_state::state::test_state as backends;
+use openjiuwen_state::StateProvider;
 
 use crate::config::RouterProfile;
 use crate::decide_loop;
@@ -20,7 +21,7 @@ pub trait KvCacheCoordinator: Send + Sync {
 
 /// 已装配的路由实例。运行期算法槽与 state 槽各生效一个。
 pub struct Router {
-    algorithm: Box<dyn Algorithm>,
+    algorithm: Box<dyn AlgorithmProvider>,
     state: Arc<dyn StateProvider>,
     targets: TargetSet,
     seed: AtomicU64,
@@ -40,51 +41,54 @@ impl Router {
     /// 从配置文件创建路由实例。返回的是 Result<Router, RouterError> 类型。
     pub fn from_profile(profile: RouterProfile) -> Result<Self, RouterError> {
         let algorithm = registry::create_algorithm(&profile.algorithm)?;
-        Self::from_profile_with_algorithm(profile, algorithm)
+        let state = Self::state_from_profile(&profile)?;
+        Ok(Self::from_parts(
+            algorithm,
+            state,
+            TargetSet::new(profile.targets.models),
+        ))
     }
 
-    /// 用宿主提供的算法装配 Router。
-    ///
-    /// PyO3 层用这个入口把 Python 对象包装成 [`Algorithm`] 后占用
-    /// 与 Rust 内置算法相同的单算法槽。
-    pub fn from_profile_with_algorithm(
-        profile: RouterProfile,
-        algorithm: Box<dyn Algorithm>,
-    ) -> Result<Self, RouterError> {
-        if algorithm.name() != profile.algorithm {
-            return Err(RouterError::Config(format!(
-                "configured algorithm `{}` does not match injected algorithm `{}`",
-                profile.algorithm,
-                algorithm.name()
-            )));
-        }
-        let state: Arc<dyn StateProvider> = match profile.state.backend.as_str() {
-            // 内存状态实现。
+    /// 按 profile 装配 state 槽。供 PyO3 在注入 StateClient 或 Python 算法时复用。
+    pub fn state_from_profile(profile: &RouterProfile) -> Result<Arc<dyn StateProvider>, RouterError> {
+        match profile.state.backend.as_str() {
             "memory" => {
                 let ttl: Duration = Duration::from_secs(profile.state.ttl_secs.unwrap_or(300));
                 let cap = profile.state.max_entries.unwrap_or(1024);
-                Arc::new(MemoryState::new(ttl, cap))
+                Ok(Arc::new(backends::memory::MemoryState::new(ttl, cap)))
             }
-            // 远程状态实现。必须在 profile 里给出 endpoint，不内置默认地址。
             "remote" => {
                 let endpoint = profile.state.endpoint.clone().ok_or_else(|| {
                     RouterError::Config("remote state requires endpoint".into())
                 })?;
                 let timeout = Duration::from_millis(profile.state.timeout_ms.unwrap_or(5));
-                Arc::new(RemoteState::new(endpoint, timeout))
+                Ok(Arc::new(backends::remote::RemoteState::new(endpoint, timeout)))
             }
-            other => {
-                return Err(RouterError::Config(format!("unknown state backend: {other}")));
-            }
-        };
-        let targets: TargetSet = TargetSet::new(profile.targets.models);
-        Ok(Self {
+            other => Err(RouterError::Config(format!("unknown state backend: {other}"))),
+        }
+    }
+
+    /// 用已构造的算法与 state 装配。PyO3 可注入 Python 算法或 StateClient。
+    pub fn from_parts(
+        algorithm: Box<dyn AlgorithmProvider>,
+        state: Arc<dyn StateProvider>,
+        targets: TargetSet,
+    ) -> Self {
+        Self {
             algorithm,
             state,
             targets,
             seed: AtomicU64::new(0),
             kv_coordinator: None,
-        })
+        }
+    }
+
+    pub fn replace_algorithm(&mut self, algorithm: Box<dyn AlgorithmProvider>) {
+        self.algorithm = algorithm;
+    }
+
+    pub fn replace_state(&mut self, state: Arc<dyn StateProvider>) {
+        self.state = state;
     }
 
     /// 驱动决策循环。`hint` 携带 cache_affinity 等每请求输入。
@@ -107,8 +111,12 @@ impl Router {
     }
 
     pub fn with_kv_coordinator(mut self, cb: Box<dyn KvCacheCoordinator>) -> Self {
-        self.kv_coordinator = Some(cb);
+        self.set_kv_coordinator(cb);
         self
+    }
+
+    pub fn set_kv_coordinator(&mut self, cb: Box<dyn KvCacheCoordinator>) {
+        self.kv_coordinator = Some(cb);
     }
 
     pub fn algorithm_name(&self) -> &str {
@@ -141,47 +149,5 @@ models = ["alpha", "beta"]
         let d = router.route(&req, &RouteHint::default()).expect("route");
         assert_eq!(d.selected_model_id, "alpha");
         assert!(d.is_answer_call);
-    }
-
-    struct LastTarget;
-
-    impl Algorithm for LastTarget {
-        fn name(&self) -> &str {
-            "last_target"
-        }
-
-        fn decide(
-            &self,
-            _request: &RouteRequest,
-            ctx: &openjiuwen_algorithms::RouteContext,
-        ) -> Result<Decision, RouterError> {
-            ctx.targets
-                .models
-                .last()
-                .map(|target| Decision::answer(target, "injected test algorithm"))
-                .ok_or(RouterError::NoTarget)
-        }
-    }
-
-    #[test]
-    fn host_algorithm_occupies_the_runtime_slot() {
-        let profile = RouterProfile::from_toml(
-            r#"
-algorithm = "last_target"
-[state]
-backend = "memory"
-[targets]
-models = ["alpha", "beta"]
-"#,
-        )
-        .expect("profile");
-        let router = Router::from_profile_with_algorithm(profile, Box::new(LastTarget))
-            .expect("assemble with injected algorithm");
-
-        let decision = router
-            .route(&RouteRequest::default(), &RouteHint::default())
-            .expect("route");
-        assert_eq!(decision.selected_model_id, "beta");
-        assert_eq!(router.algorithm_name(), "last_target");
     }
 }

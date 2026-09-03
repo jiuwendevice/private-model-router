@@ -1,25 +1,74 @@
 //! L5 PyO3 绑定。Python 宿主经 `_openjiuwen` 调用 runtime::Router。
 //!
-//! 正向边界导出 Router；反向边界把 Python 算法对象适配为 Rust
-//! `Algorithm` trait。路由逻辑仍全部在 Rust runtime 内核中。
+//! 薄门面：类型转换 + 同步调用；路由逻辑全部在 Rust 内核。
+//! 云侧 async 由 `python/openjiuwen` 再包一层。
 
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+mod adapter;
+mod convert;
+mod error;
+mod types;
 
-use openjiuwen_algorithms::{Algorithm, RouteContext};
-use openjiuwen_protocol::{
-    Decision, Feedback, Outcome, RequestMetadata, RouteHint, RouteRequest, RouterError, RoutingKey,
-};
-use openjiuwen_runtime::{Router, RouterProfile};
-use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
+use std::sync::Arc;
+use std::time::Duration;
+
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyAnyMethods, PyDict, PyDictMethods, PyTracebackMethods};
+use pyo3::types::PyAnyMethods;
 
-type PythonAlgorithmRegistry = Mutex<HashMap<String, Py<PyAny>>>;
+use openjiuwen_protocol::TargetSet;
+use openjiuwen_runtime::{registry, KvCacheCoordinator, Router};
+use openjiuwen_state::{RemoteState, StateProvider};
 
-fn python_algorithms() -> &'static PythonAlgorithmRegistry {
-    static REGISTRY: OnceLock<PythonAlgorithmRegistry> = OnceLock::new();
-    REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+use crate::convert::{extract_hint, extract_request, profile_from_obj};
+use crate::error::to_py;
+use crate::types::{
+    PyFeedback, PyFeedbackStats, PyMessage, PyModelSelection, PyRequestMetadata, PyRouteContext,
+    PyRouteHint, PyRouteRequest, PyRoutingKey, PyStateView,
+};
+
+/// 云侧远程状态客户端，对应 `RemoteState`。可注入 Router 覆盖 profile。
+#[pyclass(name = "StateClient")]
+#[derive(Clone)]
+pub struct PyStateClient {
+    inner: Arc<RemoteState>,
+}
+
+#[pymethods]
+impl PyStateClient {
+    #[new]
+    #[pyo3(signature = (endpoint, timeout_ms=5))]
+    fn new(endpoint: String, timeout_ms: u64) -> PyResult<Self> {
+        if endpoint.trim().is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "StateClient requires endpoint",
+            ));
+        }
+        Ok(Self {
+            inner: Arc::new(RemoteState::new(endpoint, Duration::from_millis(timeout_ms))),
+        })
+    }
+
+    #[getter]
+    fn endpoint(&self) -> &str {
+        &self.inner.endpoint
+    }
+
+    #[getter]
+    fn timeout_ms(&self) -> u64 {
+        self.inner.timeout.as_millis() as u64
+    }
+}
+
+struct PyKvCoordinator {
+    cb: Py<PyAny>,
+}
+
+impl KvCacheCoordinator for PyKvCoordinator {
+    fn on_switch(&self, from: &str, to: &str) {
+        Python::with_gil(|py| {
+            let _ = self.cb.bind(py).call1((from, to));
+        });
+    }
 }
 
 #[pyclass(name = "Router")]
@@ -29,289 +78,156 @@ pub struct PyRouter {
 
 #[pymethods]
 impl PyRouter {
+    /// `from_config(path | dict, *, state=None)`。dict 便于配置中心注入。
     #[staticmethod]
-    fn from_config(py: Python<'_>, path: &str) -> PyResult<Self> {
-        let profile = RouterProfile::from_path(path).map_err(to_py)?;
-        let registered = registered_algorithm(py, &profile.algorithm)?;
-        let inner = match registered {
-            Some(inner) => {
-                let adapter = PyAlgorithmAdapter::new(profile.algorithm.clone(), inner);
-                Router::from_profile_with_algorithm(profile, Box::new(adapter)).map_err(to_py)?
-            }
-            None => Router::from_profile(profile).map_err(to_py)?,
-        };
-        Ok(Self { inner })
+    #[pyo3(signature = (config, *, state=None))]
+    fn from_config(config: Bound<'_, PyAny>, state: Option<Bound<'_, PyAny>>) -> PyResult<Self> {
+        assemble(profile_from_obj(&config)?, state)
     }
 
-    /// 同步决策。Python 算法回调时会重新获取 GIL。
-    #[pyo3(signature = (selected_hint=None))]
-    fn route(&self, py: Python<'_>, selected_hint: Option<&str>) -> PyResult<PyDecision> {
-        let req = RouteRequest {
-            metadata: RequestMetadata::default(),
-            ..RouteRequest::default()
-        };
-        let hint = RouteHint {
-            cache_affinity: selected_hint.map(str::to_string),
-        };
-        let decision = py
-            .allow_threads(|| self.inner.route(&req, &hint))
-            .map_err(to_py)?;
-        Ok(decision.into())
+    #[staticmethod]
+    fn from_toml(text: &str) -> PyResult<Self> {
+        assemble(
+            openjiuwen_runtime::RouterProfile::from_toml(text).map_err(to_py)?,
+            None,
+        )
     }
 
-    fn report(&self, selected_model_id: &str, latency_ms: u64) {
-        self.inner.report(Feedback {
-            key: RoutingKey::default(),
-            selected_model_id: selected_model_id.into(),
-            outcome: Outcome::Ok,
-            latency_ms,
-            cache_valid: None,
-        });
+    /// 同步决策。接受 RouteRequest 或 dict；hint 可为 RouteHint / str / dict / None。
+    /// 跨边界返回 ModelSelection（Decision 的投影）。
+    #[pyo3(signature = (request, hint=None))]
+    fn route(
+        &self,
+        request: Bound<'_, PyAny>,
+        hint: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<PyModelSelection> {
+        let req = extract_request(&request)?;
+        let hint = extract_hint(hint.as_ref())?;
+        let d = self.inner.route(&req, &hint).map_err(to_py)?;
+        Ok(PyModelSelection::from_decision(&d))
+    }
+
+    fn report(&self, feedback: Bound<'_, PyAny>) -> PyResult<()> {
+        let fb = if let Ok(typed) = feedback.extract::<PyRef<PyFeedback>>() {
+            typed.native()?
+        } else {
+            extract_feedback_dict(&feedback)?
+        };
+        self.inner.report(fb);
+        Ok(())
     }
 
     fn algorithm_name(&self) -> &str {
         self.inner.algorithm_name()
     }
-}
 
-#[pyclass(name = "Decision", frozen)]
-#[derive(Clone, PartialEq, Eq)]
-pub struct PyDecision {
-    #[pyo3(get)]
-    pub selected_model_id: String,
-    #[pyo3(get)]
-    pub reasoning: String,
-    #[pyo3(get)]
-    pub is_answer_call: bool,
-}
-
-#[pymethods]
-impl PyDecision {
-    #[new]
-    #[pyo3(signature = (selected_model_id, reasoning, is_answer_call=true))]
-    fn new(selected_model_id: String, reasoning: String, is_answer_call: bool) -> Self {
-        Self {
-            selected_model_id,
-            reasoning,
-            is_answer_call,
-        }
+    fn with_kv_coordinator(&mut self, cb: Bound<'_, PyAny>) {
+        self.inner
+            .set_kv_coordinator(Box::new(PyKvCoordinator { cb: cb.unbind() }));
     }
 
-    fn __eq__(&self, other: &Self) -> bool {
-        self == other
+    fn replace_algorithm(&mut self, obj: Bound<'_, PyAny>) -> PyResult<()> {
+        let algo = adapter::adapter_from_obj(obj)?;
+        self.inner.replace_algorithm(algo);
+        Ok(())
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Decision(selected_model_id={:?}, reasoning={:?}, is_answer_call={})",
-            self.selected_model_id, self.reasoning, self.is_answer_call
-        )
+    fn replace_state(&mut self, state: Bound<'_, PyAny>) -> PyResult<()> {
+        self.inner.replace_state(extract_state(&state)?);
+        Ok(())
     }
 }
 
-impl From<Decision> for PyDecision {
-    fn from(value: Decision) -> Self {
-        Self {
-            selected_model_id: value.selected_model_id,
-            reasoning: value.reasoning,
-            is_answer_call: value.is_answer_call,
-        }
-    }
-}
-
-/// 传给 Python 算法的只读请求视图。
-#[pyclass(name = "RouteRequest", frozen)]
-pub struct PyRouteRequest {
-    #[pyo3(get)]
-    messages: Vec<(String, String)>,
-    #[pyo3(get)]
-    session_id: Option<String>,
-    #[pyo3(get)]
-    agent_id: Option<String>,
-    #[pyo3(get)]
-    exclusions: Vec<String>,
-}
-
-impl From<&RouteRequest> for PyRouteRequest {
-    fn from(value: &RouteRequest) -> Self {
-        Self {
-            messages: value
-                .messages
-                .iter()
-                .map(|message| (message.role.clone(), message.content.clone()))
-                .collect(),
-            session_id: value.metadata.session_id.clone(),
-            agent_id: value.metadata.agent_id.clone(),
-            exclusions: value.exclusions.clone(),
-        }
-    }
-}
-
-/// 传给 Python 算法的只读路由上下文视图。
-#[pyclass(name = "RouteContext", frozen)]
-pub struct PyRouteContext {
-    #[pyo3(get)]
-    targets: Vec<String>,
-    #[pyo3(get)]
-    affinity: Option<String>,
-    #[pyo3(get)]
-    state_exclusions: Vec<String>,
-    #[pyo3(get)]
-    sample_count: u64,
-    #[pyo3(get)]
-    seed: u64,
-}
-
-impl From<&RouteContext> for PyRouteContext {
-    fn from(value: &RouteContext) -> Self {
-        Self {
-            targets: value.targets.models.clone(),
-            affinity: value.view.affinity.clone(),
-            state_exclusions: value.view.exclusions.clone(),
-            sample_count: value.view.stats.sample_count,
-            seed: value.seed,
-        }
-    }
-}
-
-/// Python 对象到 Rust `Algorithm` trait 的反向 PyO3 适配器。
-struct PyAlgorithmAdapter {
-    name: String,
-    // `Py<PyAny>` 是 Send 但不是 Sync；Mutex 使适配器满足 Algorithm 的线程安全契约。
-    inner: Mutex<Py<PyAny>>,
-}
-
-impl PyAlgorithmAdapter {
-    fn new(name: String, inner: Py<PyAny>) -> Self {
-        Self {
-            name,
-            inner: Mutex::new(inner),
-        }
-    }
-}
-
-impl Algorithm for PyAlgorithmAdapter {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn decide(&self, request: &RouteRequest, ctx: &RouteContext) -> Result<Decision, RouterError> {
-        Python::with_gil(|py| {
-            let request = Py::new(py, PyRouteRequest::from(request))?;
-            let ctx = Py::new(py, PyRouteContext::from(ctx))?;
-            let inner = self
-                .inner
-                .lock()
-                .map_err(|_| PyRuntimeError::new_err("Python algorithm lock is poisoned"))?;
-            let result = inner.call_method1(py, "decide", (request, ctx))?;
-            extract_decision(result.bind(py))
-        })
-        .map_err(|err| {
-            let details = Python::with_gil(|py| format_python_error(py, &err));
-            RouterError::Algorithm(format!(
-                "Python algorithm `{}` failed: {details}",
-                self.name
-            ))
-        })
-    }
-}
-
-fn extract_decision(value: &Bound<'_, PyAny>) -> PyResult<Decision> {
-    let selected_model_id = extract_field::<String>(value, "selected_model_id")?;
-    if selected_model_id.is_empty() {
-        return Err(PyValueError::new_err(
-            "Decision.selected_model_id must not be empty",
-        ));
-    }
-    let reasoning = extract_field::<String>(value, "reasoning")?;
-    if reasoning.is_empty() {
-        return Err(PyValueError::new_err(
-            "Decision.reasoning must not be empty",
-        ));
-    }
-    let is_answer_call = extract_field::<bool>(value, "is_answer_call")?;
-    Ok(Decision {
-        selected_model_id,
-        reasoning,
-        is_answer_call,
+fn assemble(
+    profile: openjiuwen_runtime::RouterProfile,
+    state: Option<Bound<'_, PyAny>>,
+) -> PyResult<PyRouter> {
+    let algorithm = match adapter::lookup(&profile.algorithm) {
+        Some(algo) => algo,
+        None => registry::create_algorithm(&profile.algorithm).map_err(to_py)?,
+    };
+    let state: Arc<dyn StateProvider> = match state {
+        Some(obj) => extract_state(&obj)?,
+        None => Router::state_from_profile(&profile).map_err(to_py)?,
+    };
+    Ok(PyRouter {
+        inner: Router::from_parts(algorithm, state, TargetSet::new(profile.targets.models)),
     })
 }
 
-fn extract_field<'py, T>(value: &Bound<'py, PyAny>, name: &str) -> PyResult<T>
-where
-    T: FromPyObject<'py>,
-{
-    if let Ok(mapping) = value.downcast::<PyDict>() {
-        return mapping
-            .get_item(name)?
-            .ok_or_else(|| PyTypeError::new_err(format!("Decision mapping is missing `{name}`")))?
-            .extract();
+fn extract_state(obj: &Bound<'_, PyAny>) -> PyResult<Arc<dyn StateProvider>> {
+    if let Ok(client) = obj.extract::<PyRef<PyStateClient>>() {
+        return Ok(client.inner.clone() as Arc<dyn StateProvider>);
     }
-    value.getattr(name)?.extract()
+    Err(PyTypeError::new_err("state must be openjiuwen.StateClient"))
 }
 
-#[pyfunction]
-fn register_algorithm(py: Python<'_>, algorithm: Py<PyAny>) -> PyResult<String> {
-    let bound = algorithm.bind(py);
-    let decide = bound.getattr("decide")?;
-    if !decide.is_callable() {
-        return Err(PyTypeError::new_err(
-            "Python algorithm must define callable decide(request, ctx)",
-        ));
-    }
-    let name: String = bound.getattr("name")?.extract()?;
-    if name.trim().is_empty() {
-        return Err(PyValueError::new_err(
-            "Python algorithm name must not be empty",
-        ));
-    }
-
-    let mut registry = python_algorithms()
-        .lock()
-        .map_err(|_| PyRuntimeError::new_err("Python algorithm registry lock is poisoned"))?;
-    let previous = registry.insert(name.clone(), algorithm);
-    drop(registry);
-    drop(previous);
-    Ok(name)
-}
-
-#[pyfunction]
-fn unregister_algorithm(name: &str) -> PyResult<bool> {
-    let removed = {
-        let mut registry = python_algorithms()
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("Python algorithm registry lock is poisoned"))?;
-        registry.remove(name)
+fn extract_feedback_dict(obj: &Bound<'_, PyAny>) -> PyResult<openjiuwen_protocol::Feedback> {
+    use pyo3::types::PyDict;
+    let dict = obj
+        .downcast::<PyDict>()
+        .map_err(|_| pyo3::exceptions::PyValueError::new_err("feedback must be Feedback or dict"))?;
+    let key = match dict.get_item("key")? {
+        Some(k) if !k.is_none() => convert::extract_routing_key(&k)?,
+        _ => openjiuwen_protocol::RoutingKey {
+            session_id: dict_str_or_empty(dict, "session_id")?,
+            agent_id: dict_str_or_empty(dict, "agent_id")?,
+        },
     };
-    Ok(removed.is_some())
+    let selected = dict
+        .get_item("selected_model_id")?
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("feedback needs selected_model_id"))?
+        .extract()?;
+    let outcome = match dict.get_item("outcome")? {
+        Some(v) if !v.is_none() => {
+            let s: String = v.extract()?;
+            convert::parse_outcome(&s)?
+        }
+        _ => openjiuwen_protocol::Outcome::Ok,
+    };
+    let latency_ms = match dict.get_item("latency_ms")? {
+        Some(v) if !v.is_none() => v.extract()?,
+        _ => 0,
+    };
+    let cache_valid = match dict.get_item("cache_valid")? {
+        Some(v) if !v.is_none() => Some(v.extract()?),
+        _ => None,
+    };
+    Ok(openjiuwen_protocol::Feedback {
+        key,
+        selected_model_id: selected,
+        outcome,
+        latency_ms,
+        cache_valid,
+    })
 }
 
-fn registered_algorithm(py: Python<'_>, name: &str) -> PyResult<Option<Py<PyAny>>> {
-    let registry = python_algorithms()
-        .lock()
-        .map_err(|_| PyRuntimeError::new_err("Python algorithm registry lock is poisoned"))?;
-    Ok(registry.get(name).map(|value| value.clone_ref(py)))
-}
-
-fn format_python_error(py: Python<'_>, err: &PyErr) -> String {
-    let traceback = err
-        .traceback(py)
-        .and_then(|traceback| traceback.format().ok())
-        .unwrap_or_default();
-    format!("{traceback}{err}")
-}
-
-fn to_py(err: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(err.to_string())
+fn dict_str_or_empty(dict: &Bound<'_, pyo3::types::PyDict>, key: &str) -> PyResult<String> {
+    match dict.get_item(key)? {
+        Some(v) if !v.is_none() => v.extract(),
+        _ => Ok(String::new()),
+    }
 }
 
 #[pymodule]
 fn _openjiuwen(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRouter>()?;
-    m.add_class::<PyDecision>()?;
+    m.add_class::<PyModelSelection>()?;
     m.add_class::<PyRouteRequest>()?;
+    m.add_class::<PyRouteHint>()?;
+    m.add_class::<PyMessage>()?;
+    m.add_class::<PyRequestMetadata>()?;
+    m.add_class::<PyRoutingKey>()?;
+    m.add_class::<PyFeedback>()?;
+    m.add_class::<PyStateClient>()?;
+    m.add_class::<PyStateView>()?;
+    m.add_class::<PyFeedbackStats>()?;
     m.add_class::<PyRouteContext>()?;
-    m.add_function(wrap_pyfunction!(register_algorithm, m)?)?;
-    m.add_function(wrap_pyfunction!(unregister_algorithm, m)?)?;
+    m.add_function(wrap_pyfunction!(adapter::register_algorithm, m)?)?;
+    m.add("Decision", m.getattr("ModelSelection")?)?;
+    m.add("OK", "ok")?;
+    m.add("OVERFLOW", "overflow")?;
+    m.add("UNAVAILABLE", "unavailable")?;
+    m.add("REJECTED", "rejected")?;
     Ok(())
 }

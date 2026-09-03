@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from openjiuwen import PyAlgorithm
+from openjiuwen.contrib import PyAlgorithm
 
 
 class CostAwareAlgorithm(PyAlgorithm):

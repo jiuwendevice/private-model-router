@@ -3,7 +3,8 @@ from __future__ import annotations
 import pytest
 
 from cost_aware_algorithm import CostAwareAlgorithm
-from openjiuwen import check_purity, unregister_algorithm
+from openjiuwen import register_algorithm
+from openjiuwen.contrib import check_purity
 
 
 class _Context:
@@ -28,7 +29,7 @@ def test_python_algorithm_round_trips_through_rust(tmp_path):
     algorithm = CostAwareAlgorithm(
         {"fast-expensive": 10.0, "slow-cheap": 1.0}
     )
-    assert algorithm.register() == algorithm.name
+    assert register_algorithm(algorithm) == algorithm.name
 
     config = tmp_path / "python-algorithm.toml"
     config.write_text(
@@ -42,13 +43,10 @@ models = ["fast-expensive", "slow-cheap"]
         encoding="utf-8",
     )
 
-    try:
-        # from_config 在 Rust 注册表找到 Python 对象，将其包装为
-        # Algorithm trait。route() 进入 Rust 决策循环后再回调 decide()。
-        router = Router.from_config(str(config))
-        decision = router.route()
-        assert router.algorithm_name() == algorithm.name
-        assert decision.selected_model_id == "slow-cheap"
-        assert decision.reasoning == "python_cost_aware: lowest configured cost"
-    finally:
-        unregister_algorithm(algorithm.name)
+    # from_config 在 Rust 注册表找到 Python 对象，将其包装为
+    # AlgorithmProvider trait。route_sync() 进入 Rust 决策循环后再回调 decide()。
+    router = Router.from_config(str(config))
+    decision = router.route_sync({})
+    assert router.algorithm_name() == algorithm.name
+    assert decision.selected_model_id == "slow-cheap"
+    assert decision.reasoning == "python_cost_aware: lowest configured cost"

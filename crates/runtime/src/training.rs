@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use openjiuwen_algorithms::evolving::{Artifact, Evolving, TrainingBatch};
+use openjiuwen_algorithms::evolving::{Artifact, EvolvingProvider, TrainingBatch};
 
 /// 按 watermark 从 state 拉增量反馈。骨架返回空 batch。
 pub struct DataSelector {
@@ -24,7 +24,7 @@ pub struct PublishPlan {
     pub expected_version: u64,
 }
 
-/// 训练任务的执行体：拉数据 → Evolving.fit → CAS 写回。
+/// 训练任务的执行体：拉数据 → EvolvingProvider.fit → CAS 写回。
 pub struct TrainingJob {
     pub name: String,
     pub selector: DataSelector,
@@ -33,7 +33,7 @@ pub struct TrainingJob {
 
 impl TrainingJob {
     /// 骨架：选出空 batch、fit、丢弃工件。真实写回走 StateProvider::publish。
-    pub fn run_once(&self, evolving: &dyn Evolving) -> Arc<Artifact> {
+    pub fn run_once(&self, evolving: &dyn EvolvingProvider) -> Arc<Artifact> {
         let batch = self.selector.select();
         evolving.fit(&batch)
     }

@@ -4,13 +4,13 @@
 `decide(request, ctx)`。集成链路是：
 
 ```text
-CostAwareAlgorithm.register()
+register_algorithm(CostAwareAlgorithm(...))
   -> PyO3 register_algorithm(obj)
   -> PyAlgorithmAdapter { Py<PyAny> }
-  -> Rust Box<dyn Algorithm>
+  -> Rust Box<dyn AlgorithmProvider>
   -> runtime::Router::route()
   -> adapter 获取 GIL 并回调 obj.decide(request, ctx)
-  -> Python decision 转换为 Rust Decision
+  -> Python selection 转换为 Rust ModelSelection
 ```
 
 运行时先构建扩展，再执行示例测试：

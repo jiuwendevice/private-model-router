@@ -1,4 +1,7 @@
 //! [`StateProvider`]：状态实现者的唯一接入点。
+//!
+//! 与算法侧 `AlgorithmProvider` 对位：运行期单槽选一。
+//! 状态是 hint：有界、可丢失；算法从不直接调用本 trait。
 
 use openjiuwen_protocol::{Feedback, RoutingKey, StateView};
 

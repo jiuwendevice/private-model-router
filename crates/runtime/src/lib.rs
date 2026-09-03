@@ -12,4 +12,5 @@ pub use openjiuwen_protocol::{
     Decision, Feedback, Message, Outcome, RequestMetadata, RouteHint, RouteRequest, RouterError,
     RoutingKey,
 };
+pub use registry::create_algorithm;
 pub use router::{KvCacheCoordinator, Router};

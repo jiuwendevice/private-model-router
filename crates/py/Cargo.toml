@@ -15,8 +15,9 @@ default = []
 extension-module = ["pyo3/extension-module"]
 
 [dependencies]
-openjiuwen-algorithms = { workspace = true, default-features = false }
 openjiuwen-protocol.workspace = true
+openjiuwen-state.workspace = true
+openjiuwen-algorithms = { workspace = true }
 openjiuwen-runtime = { workspace = true }
 pyo3 = { workspace = true }
 

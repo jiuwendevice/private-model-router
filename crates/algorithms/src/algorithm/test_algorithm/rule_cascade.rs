@@ -1,11 +1,11 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::algorithm::{Algorithm, RouteContext};
+use crate::algorithm::{AlgorithmProvider, RouteContext};
 
 /// 规则级联。骨架阶段退化为直通。
 pub struct RuleCascade;
 
-impl Algorithm for RuleCascade {
+impl AlgorithmProvider for RuleCascade {
     fn name(&self) -> &str {
         "rule_cascade"
     }

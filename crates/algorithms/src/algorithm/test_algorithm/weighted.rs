@@ -1,11 +1,11 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::algorithm::{Algorithm, RouteContext};
+use crate::algorithm::{AlgorithmProvider, RouteContext};
 
 /// 加权选择。骨架阶段退化为直通，权重表后续注入。
 pub struct Weighted;
 
-impl Algorithm for Weighted {
+impl AlgorithmProvider for Weighted {
     fn name(&self) -> &str {
         "weighted"
     }

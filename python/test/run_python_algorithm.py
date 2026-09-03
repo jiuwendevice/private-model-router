@@ -6,37 +6,34 @@ import tempfile
 from pathlib import Path
 
 from cost_aware_algorithm import CostAwareAlgorithm
-from openjiuwen import Router, unregister_algorithm
+from openjiuwen import Router, register_algorithm
 
 
 def main() -> None:
     algorithm = CostAwareAlgorithm(
         {"fast-expensive": 10.0, "slow-cheap": 1.0}
     )
-    algorithm.register()
+    register_algorithm(algorithm)
 
-    try:
-        with tempfile.TemporaryDirectory() as directory:
-            config = Path(directory) / "python-algorithm.toml"
-            config.write_text(
-                """
+    with tempfile.TemporaryDirectory() as directory:
+        config = Path(directory) / "python-algorithm.toml"
+        config.write_text(
+            """
 algorithm = "python_cost_aware"
 [state]
 backend = "memory"
 [targets]
 models = ["fast-expensive", "slow-cheap"]
 """.strip(),
-                encoding="utf-8",
+            encoding="utf-8",
+        )
+        router = Router.from_config(str(config))
+        decision = router.route_sync({})
+        print(
+            "Rust runtime selected {0}: {1}".format(
+                decision.selected_model_id, decision.reasoning
             )
-            router = Router.from_config(str(config))
-            decision = router.route()
-            print(
-                "Rust runtime selected {0}: {1}".format(
-                    decision.selected_model_id, decision.reasoning
-                )
-            )
-    finally:
-        unregister_algorithm(algorithm.name)
+        )
 
 
 if __name__ == "__main__":

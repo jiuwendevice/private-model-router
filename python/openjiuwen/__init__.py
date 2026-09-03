@@ -1,95 +1,145 @@
-"""openjiuwen 的 Python 公开接口。
+"""openjiuwen — 云侧 Python 门面。
 
-Python 包根目录只放置宿主接口和 PyO3 集成契约；团队编写的
-Python 算法示例位于 ``python/test``，不作为内置算法发布。
+Router / 协议类型由 PyO3 扩展 `_openjiuwen` 重导出；扩展未构建时包仍可导入，
+内置 Python 算法与 contrib SDK 可独立使用。
+
+`route` / `report` 在 Python 侧是 async（蓝图云侧门面）；同步内核仍在 Rust。
 """
 
 from __future__ import annotations
 
-from importlib import import_module
-from typing import Any
+from typing import TYPE_CHECKING, Any, Union
+
+from . import algorithm, contrib
+from .state import StateClientConfig
 
 __all__ = [
-    "Decision",
-    "PyAlgorithm",
-    "RouteContext",
-    "RouteRequest",
+    "algorithm",
+    "contrib",
     "Router",
-    "check_purity",
+    "Decision",
+    "ModelSelection",
+    "RouteRequest",
+    "RouteHint",
+    "Message",
+    "RequestMetadata",
+    "RoutingKey",
+    "Feedback",
+    "StateClient",
+    "StateClientConfig",
+    "StateView",
+    "RouteContext",
     "register_algorithm",
-    "unregister_algorithm",
+    "Outcome",
 ]
 
-_NATIVE_EXPORTS = {"Router", "Decision", "RouteRequest", "RouteContext"}
+
+class Outcome:
+    """反馈结果。溢出与不可用会写入 state 排除表。"""
+
+    OK = "ok"
+    OVERFLOW = "overflow"
+    UNAVAILABLE = "unavailable"
+    REJECTED = "rejected"
 
 
-class PyAlgorithm:
-    """Python 路由算法的最小契约。
-
-    子类实现 ``decide(request, ctx)``；该方法必须是无 I/O、无可变状态的
-    纯函数。调用 ``register()`` 后，PyO3 会将对象包装成 Rust
-    ``Algorithm`` trait 对象。
-    """
-
-    name = "unnamed"
-
-    def decide(self, request: Any, ctx: Any) -> Any:
-        raise NotImplementedError(
-            "{0} must implement decide()".format(type(self).__name__)
+if TYPE_CHECKING:
+    from ._openjiuwen import (
+        Feedback,
+        Message,
+        ModelSelection,
+        RequestMetadata,
+        RouteContext,
+        RouteHint,
+        RouteRequest,
+        RoutingKey,
+        StateClient,
+        StateView,
+        register_algorithm,
+        Router as NativeRouter,
+    )
+else:
+    try:
+        from ._openjiuwen import (
+            Feedback,
+            Message,
+            ModelSelection,
+            RequestMetadata,
+            RouteContext,
+            RouteHint,
+            RouteRequest,
+            RoutingKey,
+            StateClient,
+            StateView,
+            register_algorithm,
+            Router as NativeRouter,
         )
-
-    def register(self) -> str:
-        return register_algorithm(self)
-
-
-def check_purity(algorithm: PyAlgorithm, request: Any, ctx: Any, rounds: int = 2) -> Any:
-    """用相同输入重复调用算法，检查输出是否稳定。"""
-
-    if rounds < 2:
-        raise ValueError("rounds must be at least 2")
-    results = [algorithm.decide(request, ctx) for _ in range(rounds)]
-    first = results[0]
-    for other in results[1:]:
-        if other != first:
-            raise AssertionError(
-                "PyAlgorithm {0} is not pure: {1} != {2}".format(
-                    getattr(algorithm, "name", type(algorithm).__name__), first, other
-                )
-            )
-    return first
+    except ImportError:  # pragma: no cover
+        NativeRouter = None  # type: ignore[misc, assignment]
+        Feedback = None  # type: ignore[misc, assignment]
+        Message = None  # type: ignore[misc, assignment]
+        ModelSelection = None  # type: ignore[misc, assignment]
+        RequestMetadata = None  # type: ignore[misc, assignment]
+        RouteContext = None  # type: ignore[misc, assignment]
+        RouteHint = None  # type: ignore[misc, assignment]
+        RouteRequest = None  # type: ignore[misc, assignment]
+        RoutingKey = None  # type: ignore[misc, assignment]
+        StateClient = None  # type: ignore[misc, assignment]
+        StateView = None  # type: ignore[misc, assignment]
+        register_algorithm = None  # type: ignore[misc, assignment]
 
 
-def register_algorithm(algorithm: PyAlgorithm) -> str:
-    """把 Python 算法注册到 PyO3/Rust 算法池。"""
+Decision = ModelSelection
 
-    try:
-        from openjiuwen._openjiuwen import register_algorithm as native_register
-    except ImportError as exc:  # pragma: no cover - 由未构建扩展的环境触发
+
+def _require_native():
+    if NativeRouter is None:
         raise ImportError(
             "native extension `_openjiuwen` is not built; run `maturin develop`"
-        ) from exc
-    return native_register(algorithm)
+        )
+    return NativeRouter
 
 
-def unregister_algorithm(name: str) -> bool:
-    """从 PyO3/Rust 算法池移除一个 Python 算法。"""
+class Router:
+    """Python 门面：装配 / 同步内核调用 / async 包装。"""
 
-    try:
-        from openjiuwen._openjiuwen import unregister_algorithm as native_unregister
-    except ImportError as exc:  # pragma: no cover - 由未构建扩展的环境触发
-        raise ImportError(
-            "native extension `_openjiuwen` is not built; run `maturin develop`"
-        ) from exc
-    return native_unregister(name)
+    def __init__(self, native: Any) -> None:
+        self._native = native
 
+    @classmethod
+    def from_config(cls, config: Union[str, dict], state: Any = None) -> Router:
+        native_cls = _require_native()
+        if state is None:
+            return cls(native_cls.from_config(config))
+        return cls(native_cls.from_config(config, state=state))
 
-def __getattr__(name: str) -> Any:
-    if name in _NATIVE_EXPORTS:
-        try:
-            _openjiuwen = import_module("openjiuwen._openjiuwen")
-        except ImportError as exc:  # pragma: no cover - 由未构建扩展的环境触发
-            raise ImportError(
-                "native extension `_openjiuwen` is not built; run `maturin develop`"
-            ) from exc
-        return getattr(_openjiuwen, name)
-    raise AttributeError("module {0!r} has no attribute {1!r}".format(__name__, name))
+    @classmethod
+    def from_toml(cls, text: str) -> Router:
+        return cls(_require_native().from_toml(text))
+
+    def route_sync(self, request: Any, hint: Any = None) -> Any:
+        return self._native.route(request, hint)
+
+    async def route(self, request: Any, hint: Any = None) -> Any:
+        return self.route_sync(request, hint)
+
+    def report_sync(self, feedback: Any) -> None:
+        self._native.report(feedback)
+
+    async def report(self, feedback: Any) -> None:
+        self.report_sync(feedback)
+
+    def algorithm_name(self) -> str:
+        return self._native.algorithm_name()
+
+    def with_kv_coordinator(self, cb: Any) -> Router:
+        self._native.with_kv_coordinator(cb)
+        return self
+
+    def replace_algorithm(self, obj: Any) -> Router:
+        self._native.replace_algorithm(obj)
+        return self
+
+    def replace_state(self, state: Any) -> Router:
+        self._native.replace_state(state)
+        return self
