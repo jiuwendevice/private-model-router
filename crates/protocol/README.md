@@ -102,7 +102,7 @@ let _ = selection;
 let _ = feedback;
 ```
 
-`Decision` 与 `ModelSelection` 字段相同（`selected_model_id` / `reasoning` / `is_answer_call`），差别只在「是否可执行」：前者是 runtime 内部返回值，后者是跨边界规格。
+`Decision` 与 `ModelSelection` 字段相同（`selected_model_id` / `reasoning` / `is_answer_call`），差别只在「是否可执行」：前者是 runtime 内部返回值，后者是跨边界规格。runtime 北向契约 `RouterProvider::route` 返回 `ModelSelection`。
 
 ## 主要模块
 

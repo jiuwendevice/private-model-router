@@ -9,8 +9,7 @@ python/
 │   └── algorithm_provider.py  # Python 算法契约（AlgorithmProvider）
 └── test_algo/                  # Python 测试算法与回接 Rust 的示例
     ├── cost_aware_algorithm.py
-    ├── run_python_algorithm.py
-    └── test_python_algorithm.py
+    └── run_python_algorithm.py
 ```
 
 `openjiuwen` 是 maturin 混合工程的 Python 包根。PyO3 生成的

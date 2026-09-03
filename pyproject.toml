@@ -20,5 +20,6 @@ testpaths = ["tests"]
 [tool.pyright]
 include = ["python", "tests"]
 extraPaths = ["python"]
+stubPath = "typings"
 pythonVersion = "3.8"
 reportMissingModuleSource = false

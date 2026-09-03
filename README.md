@@ -8,7 +8,7 @@
 
 核心能力包括：
 
-- `Router` 门面：`from_config` / `route` / `report`；
+- `Router` 门面：`from_config` / `route` / `report`；北向契约 `RouterProvider` 在 runtime；
 - 可插拔算法槽（`AlgorithmProvider`）与状态槽（`StateProvider`），运行期各生效一个；
 - 协议层类型：`RouteRequest`、`Decision`、`ModelSelection`、`Feedback`、`StateView`；
 - 端云两套 TOML profile（进程内 state / 远程 state 客户端）；
@@ -23,7 +23,7 @@
 - **单槽可插拔**：一个路由实例运行期只跑一个算法、一套 state；候选来自注册表，装配期选定。
 - **状态是 hint**：丢失只降质为冷路由。远程实现硬超时返回空视图，而不是让请求失败。
 - **一套内核、两种形态**：端云差异收敛在 TOML profile，不在业务代码里分叉。
-- **可嵌入**：Rust 宿主静态链接 `openjiuwen-runtime`；云侧可再经 PyO3 导出为 Python 扩展。
+- **可嵌入**：Rust 宿主静态链接 `openjiuwen-runtime`（`Router` / `RouterProvider`）。云侧可再经 PyO3 导出为 Python 扩展。
 
 ## 仓库结构
 
@@ -234,7 +234,7 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### 运行层（`openjiuwen-runtime`）
 
-宿主只看 `Router`。`from_config` 装配两个插件槽；`route` 驱动 snapshot → decide；`report` 转发 state。`Trigger` / `TrainingJob` 类型已占位，尚未挂到装配路径。
+宿主只看 `Router`（实现 `RouterProvider`）。`from_config` 装配两个插件槽；`route` 驱动 snapshot → decide；`report` 转发 state。`RouterProvider` 与 `Router` 同在本层。`Trigger` / `TrainingJob` 类型已占位，尚未挂到装配路径。
 
 ### Python 门面（`crates/py` + `python/openjiuwen` + `python/test_algo`）
 
@@ -259,7 +259,7 @@ pytest tests/test_package.py tests/test_native_router.py
 
 已经能用：
 
-- 五层 crate 目录与公开契约（`AlgorithmProvider` / `StateProvider` / `Router`）；
+- 五层 crate 目录与公开契约（`RouterProvider` / `AlgorithmProvider` / `StateProvider` / `Router`）；
 - `from_config` 装配算法槽与 state 槽；
 - passthrough 决策、memory 排除 hint、ReAct 集成测试；
 - Python 门面：`RouteRequest` / `ModelSelection` / `Feedback` / `StateClient` 绑定，以及 `register_algorithm` 反向包装。

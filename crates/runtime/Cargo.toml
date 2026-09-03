@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "L4 运行层：Router 门面、装配、决策循环与训练调度"
+description = "L4 运行层：Router / RouterProvider 门面、装配、决策循环与训练调度"
 
 [features]
 default = [

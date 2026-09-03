@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pytest
+import pytest  # type: ignore[import-not-found]
 
 pytest.importorskip("openjiuwen._openjiuwen")
 

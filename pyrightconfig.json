@@ -1,7 +1,15 @@
 {
   "include": ["python", "tests"],
   "extraPaths": ["python"],
+  "stubPath": "typings",
   "pythonVersion": "3.8",
   "typeCheckingMode": "basic",
-  "reportMissingModuleSource": false
+  "reportMissingModuleSource": false,
+  "executionEnvironments": [
+    {
+      "root": "tests",
+      "extraPaths": ["python"],
+      "reportMissingImports": false
+    }
+  ]
 }

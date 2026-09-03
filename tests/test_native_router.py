@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pytest
+import pytest  # type: ignore[import-not-found]
 
 pytest.importorskip("openjiuwen._openjiuwen")
 
@@ -65,22 +65,23 @@ def test_async_route_and_report():
 
 
 def test_python_algorithm_register_and_replace():
-    from test_algo import Passthrough
+    from test_algo import CostAwareAlgorithm
 
-    openjiuwen.register_algorithm(Passthrough())
+    algo = CostAwareAlgorithm({"alpha": 1.0, "beta": 10.0})
+    openjiuwen.register_algorithm(algo)
     router = Router.from_toml(
         """
-algorithm = "passthrough"
+algorithm = "python_cost_aware"
 [state]
 backend = "memory"
 [targets]
 models = ["alpha", "beta"]
 """
     )
-    router.replace_algorithm(Passthrough())
+    router.replace_algorithm(algo)
     decision = router.route_sync({"exclusions": ["alpha"]})
     assert decision.selected_model_id == "beta"
-    assert "passthrough" in decision.reasoning
+    assert "python_cost_aware" in decision.reasoning
 
 
 def test_state_client_constructs():

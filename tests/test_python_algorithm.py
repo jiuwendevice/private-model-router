@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import pytest
+import pytest  # type: ignore[import-not-found]
 
-from test_algo.cost_aware_algorithm import CostAwareAlgorithm
-from openjiuwen import register_algorithm
+from test_algo import CostAwareAlgorithm
 from openjiuwen.contrib import check_purity
 
 
@@ -24,7 +23,7 @@ def test_python_algorithm_round_trips_through_rust(tmp_path):
         "openjiuwen._openjiuwen",
         reason="run `maturin develop` before the PyO3 integration test",
     )
-    from openjiuwen import Router
+    from openjiuwen import Router, register_algorithm
 
     algorithm = CostAwareAlgorithm(
         {"fast-expensive": 10.0, "slow-cheap": 1.0}
@@ -43,8 +42,6 @@ models = ["fast-expensive", "slow-cheap"]
         encoding="utf-8",
     )
 
-    # from_config 在 Rust 注册表找到 Python 对象，将其包装为
-    # AlgorithmProvider trait。route_sync() 进入 Rust 决策循环后再回调 decide()。
     router = Router.from_config(str(config))
     decision = router.route_sync({})
     assert router.algorithm_name() == algorithm.name

@@ -36,7 +36,7 @@ python/openjiuwen/                  # 用户面包（maturin python-source）
 ├── react_agent.py        # 最小 Python ReAct 宿主示例
 └── algorithm_provider.py # 公共契约 AlgorithmProvider
 
-python/test_algo/                   # Python 测试算法；经 register_algorithm 回接 Rust
+python/test_algo/                   # CostAwareAlgorithm：register_algorithm 回接 Rust
 ```
 
 `pyproject.toml` 把两边打进同一个 wheel：`module-name = "openjiuwen._openjiuwen"`。
@@ -116,7 +116,7 @@ cargo check -p openjiuwen
 | `openjiuwen.AlgorithmProvider` | 供稿基类：实现 `name` + `decide(request, ctx)` |
 | `openjiuwen.check_purity` | 同输入双调用，辅助验收纯函数 |
 | `openjiuwen.contrib.PyAlgorithm` | `AlgorithmProvider` 的别名，兼容旧导入 |
-| `test_algo` | 测试实现（passthrough 等）；`REGISTRY` 在此组装 |
+| `test_algo.CostAwareAlgorithm` | Python 回接示例：按配置成本选目标 |
 
 Python 算法必须守纯函数：不 I/O、不调模型、随机性只用 `ctx.seed`。端侧没有解释器，这些实现只随 wheel 走云侧。
 
@@ -129,6 +129,16 @@ Python 算法必须守纯函数：不 I/O、不调模型、随机性只用 `ctx.
 | `LookupError` | `NoTarget`：排除后目录为空 |
 
 没有单独的 `openjiuwen.RouterError` 类型。
+
+与 Rust 北向契约 [`RouterProvider`](../runtime/README.md) 的对应：
+
+| Rust `RouterProvider` | Python |
+|-----------------------|--------|
+| `route(request, hint) -> ModelSelection` | `await router.route` / `route_sync` |
+| `report(feedback)` | `await router.report` / `report_sync` |
+| `algorithm_name()` | `router.algorithm_name()` |
+
+装配（`from_config`）与南向替换不在该 trait 上，Python 仍走 `Router` 类方法。
 
 ### 北向调用链
 
@@ -179,12 +189,12 @@ await router.report(Feedback.ok(
 
 ```python
 from openjiuwen import Feedback, Outcome, RouteRequest, RequestMetadata, Router, register_algorithm
-from test_algo import Passthrough
+from test_algo import CostAwareAlgorithm
 
-register_algorithm(Passthrough())  # 按名占用算法槽；profile 里 algorithm = "passthrough"
+register_algorithm(CostAwareAlgorithm({"fast-local": 1.0, "strong-cloud": 10.0}))
 
 router = Router.from_toml("""
-algorithm = "passthrough"
+algorithm = "python_cost_aware"
 [state]
 backend = "memory"
 [targets]
@@ -236,4 +246,4 @@ pytest tests/test_react_agent.py
 python -m openjiuwen.react_agent
 ```
 
-协议类型本身的词汇表见 [`../protocol/README.md`](../protocol/README.md)。Rust 宿主不经本层，见 [`../runtime/README.md`](../runtime/README.md)。
+协议类型本身的词汇表与北向契约见 [`../protocol/README.md`](../protocol/README.md)。Rust 宿主不经本层，见 [`../runtime/README.md`](../runtime/README.md)。

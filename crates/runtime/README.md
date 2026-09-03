@@ -2,7 +2,7 @@
 
 ## 简介
 
-`openjiuwen-runtime` 是 openjiuwen-router 的 **L4 运行层**：把协议、状态、算法装配成一个可调用的 `Router`。宿主只看这一个门面——`from_config` 装配，`route` 取决策，`report` 交反馈。**本 crate 不调用模型**；选中谁之后由宿主自己去调后端。
+`openjiuwen-runtime` 是 openjiuwen-router 的 **L4 运行层**：把协议、状态、算法装配成一个可调用的 `Router`。宿主只看这一个门面——`from_config` 装配，`route` 取决策，`report` 交反馈。北向契约是 [`RouterProvider`](src/router_provider.rs)：`Router` 实现它，`route` 投影为 `ModelSelection`。**本 crate 不调用模型**；选中谁之后由宿主自己去调后端。
 
 运行期两个插件槽各生效一个：算法槽（`Box<dyn AlgorithmProvider>`）和 state 槽（`Arc<dyn StateProvider>`）。端云差异收敛在 TOML profile，不在 `route` 里分叉。
 
@@ -10,7 +10,7 @@
 
 ## 为什么要单独一层 runtime
 
-- **宿主接口收敛**：算法作者看 `AlgorithmProvider`，状态实现者看 `StateProvider`，宿主只看 `Router`。
+- **宿主接口收敛**：算法作者看 `AlgorithmProvider`，状态实现者看 `StateProvider`，宿主看 `Router` / `RouterProvider`。
 - **决策与执行分离**：`route` 返回 `Decision` 即结束；流量不经过本层。
 - **状态经入参注入**：`decide_loop` 先 `snapshot`，再把 `StateView` 塞进 `RouteContext`，算法从不直接访问 state。
 - **装配错误提前暴露**：未知算法名、未知 backend、TOML 读失败在 `from_config` 就返回 `RouterError::Config`。
@@ -35,8 +35,9 @@ crates/runtime/
 ├── Cargo.toml
 ├── README.md
 └── src/
-    ├── lib.rs            # 模块入口；重导出 Router 与协议类型
+    ├── lib.rs            # 模块入口；重导出 Router、RouterProvider 与协议类型
     ├── router.rs         # Router 门面：from_config / route / report
+    ├── router_provider.rs # 北向契约 RouterProvider
     ├── config.rs         # TOML profile 解析（RouterProfile）
     ├── registry.rs       # 算法池：按名取出一个 AlgorithmProvider
     ├── decide_loop.rs    # snapshot → RouteContext → decide
@@ -129,12 +130,25 @@ cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
 | `from_config` / `from_toml` / `from_profile` | 启动期装配，失败为 `RouterError::Config` |
 | `from_parts` / `state_from_profile` | 用已构造的算法与 state 装配；供 PyO3 注入 |
 | `replace_algorithm` / `replace_state` | 运行期替换插件槽 |
-| `route` | 决策循环；返回 `Decision`（Rust 原生路径，不投影 `ModelSelection`） |
+| `route` | 决策循环；返回 `Decision`（Rust 原生路径）。`RouterProvider::route` 再投影为 `ModelSelection` |
 | `report` | 转发 `StateProvider::report`；骨架为同步写入 |
 | `with_kv_coordinator` / `set_kv_coordinator` | 注册切换回调；骨架只保存，`route` 尚未触发 `on_switch` |
 | `algorithm_name` | 当前算法槽的稳定名 |
 
 `RouteHint` 已传入 `decide_loop`，骨架里尚未读 `cache_affinity`。
+
+### `RouterProvider`（`router_provider.rs`）
+
+应用把本项目当 plugin 嵌入时看这个 trait：`route` → `ModelSelection`，`report`，`algorithm_name`。装配不在 trait 上。
+
+```rust
+use openjiuwen_runtime::{RouteHint, Router, RouterProvider};
+
+let router = Router::from_config("config/edge.toml")?;
+let plugin: &dyn RouterProvider = &router;
+let selection = plugin.route(&req, &RouteHint::default())?;
+// 应用自己调用 selection.selected_model_id
+```
 
 ### 配置（`config.rs`）
 
@@ -156,7 +170,8 @@ cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
 ### 与其它 crate 的关系
 
 ```text
-宿主 → runtime::Router
+宿主 → dyn RouterProvider（runtime 北向契约）
+         ↑ runtime::Router 实现
          ├─ algorithms::AlgorithmProvider（decide）
          └─ openjiuwen_state::StateProvider（snapshot / report）
 二者之间没有直接调用；耦合点是 RouteContext.view。

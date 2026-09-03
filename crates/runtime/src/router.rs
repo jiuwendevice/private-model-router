@@ -6,12 +6,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use openjiuwen_algorithms::AlgorithmProvider;
-use openjiuwen_protocol::{Decision, Feedback, RouteHint, RouteRequest, RouterError, TargetSet};
+use openjiuwen_protocol::{
+    Decision, Feedback, ModelSelection, RouteHint, RouteRequest, RouterError, TargetSet,
+};
 use openjiuwen_state::{test_state as backends, StateProvider};
 
 use crate::config::RouterProfile;
 use crate::decide_loop;
 use crate::registry;
+use crate::RouterProvider;
 
 /// 模型切换时的 KV cache 协调回调。骨架仅保存，不触发。
 pub trait KvCacheCoordinator: Send + Sync {
@@ -123,6 +126,24 @@ impl Router {
     }
 }
 
+impl RouterProvider for Router {
+    fn route(
+        &self,
+        request: &RouteRequest,
+        hint: &RouteHint,
+    ) -> Result<ModelSelection, RouterError> {
+        Router::route(self, request, hint).map(ModelSelection::from)
+    }
+
+    fn report(&self, feedback: Feedback) {
+        Router::report(self, feedback);
+    }
+
+    fn algorithm_name(&self) -> &str {
+        Router::algorithm_name(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,5 +169,12 @@ models = ["alpha", "beta"]
         let d = router.route(&req, &RouteHint::default()).expect("route");
         assert_eq!(d.selected_model_id, "alpha");
         assert!(d.is_answer_call);
+
+        let plugin: &dyn RouterProvider = &router;
+        let selection = plugin
+            .route(&req, &RouteHint::default())
+            .expect("plugin route");
+        assert_eq!(selection.selected_model_id, "alpha");
+        assert_eq!(plugin.algorithm_name(), "passthrough");
     }
 }
