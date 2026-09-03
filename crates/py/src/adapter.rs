@@ -1,4 +1,4 @@
-//! Python 算法 → Rust [`Algorithm`] 反向绑定。
+//! Python 算法 → Rust [`AlgorithmProvider`] 反向绑定。
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -6,7 +6,7 @@ use std::sync::{Mutex, OnceLock};
 use pyo3::prelude::*;
 use pyo3::types::PyAnyMethods;
 
-use openjiuwen_algorithms::{Algorithm, RouteContext};
+use openjiuwen_algorithms::{AlgorithmProvider, RouteContext};
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
 use crate::convert;
@@ -27,7 +27,7 @@ impl PyAlgorithmAdapter {
     }
 }
 
-impl Algorithm for PyAlgorithmAdapter {
+impl AlgorithmProvider for PyAlgorithmAdapter {
     fn name(&self) -> &str {
         &self.name
     }
@@ -56,7 +56,7 @@ impl Algorithm for PyAlgorithmAdapter {
     }
 }
 
-pub fn lookup(name: &str) -> Option<Box<dyn Algorithm>> {
+pub fn lookup(name: &str) -> Option<Box<dyn AlgorithmProvider>> {
     let obj = {
         let map = py_algorithms().lock().unwrap_or_else(|e| e.into_inner());
         map.get(name)
@@ -94,7 +94,7 @@ pub fn register_algorithm(obj: Bound<'_, PyAny>) -> PyResult<String> {
 }
 
 /// 供 Router 热替换：从已注册或传入对象构造 trait 对象。
-pub fn adapter_from_obj(obj: Bound<'_, PyAny>) -> PyResult<Box<dyn Algorithm>> {
+pub fn adapter_from_obj(obj: Bound<'_, PyAny>) -> PyResult<Box<dyn AlgorithmProvider>> {
     let instance = convert::as_instance(&obj)?;
     let name = register_algorithm(instance.clone())?;
     Ok(Box::new(PyAlgorithmAdapter::new(name, instance.unbind())))

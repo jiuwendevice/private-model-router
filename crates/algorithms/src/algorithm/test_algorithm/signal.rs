@@ -1,18 +1,18 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::algorithm::{Algorithm, RouteContext};
+use crate::algorithm::{AlgorithmProvider, RouteContext};
 
-/// 直通：选目标集中第一个未被排除的模型。
-pub struct Passthrough;
+/// 信号驱动。骨架阶段退化为直通。
+pub struct Signal;
 
-impl Algorithm for Passthrough {
+impl AlgorithmProvider for Signal {
     fn name(&self) -> &str {
-        "passthrough"
+        "signal"
     }
 
     fn decide(&self, request: &RouteRequest, ctx: &RouteContext) -> Result<Decision, RouterError> {
         let available = ctx.targets.without(&request.exclusions);
         let model = available.first().ok_or(RouterError::NoTarget)?;
-        Ok(Decision::answer(model, "passthrough: first available target"))
+        Ok(Decision::answer(model, "signal: stub, falls back to first target"))
     }
 }

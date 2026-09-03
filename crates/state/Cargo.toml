@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "L2 状态管理：StateProvider 契约 + memory / remote 实现"
+description = "L2 状态层：StateProvider 契约与 memory / remote 实现"
 
 [features]
 default = []

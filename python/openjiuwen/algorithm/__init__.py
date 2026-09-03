@@ -1,25 +1,28 @@
 from __future__ import annotations
 
-"""内置 Python 算法注册表：算法名 → 算法类。
+"""Python 算法包：公共契约在 `algorithm_provider`，示意实现在 `test_algorithm/`。
 
-与 crates/algorithms 同名同功能；构建配置按算法名选 rust 或 python，避免双份入产物。
+`AlgorithmProvider` / `check_purity` 是对外接口。passthrough 等只是骨架示意。
 """
 
-from openjiuwen.algorithm.ensemble import Ensemble
-from openjiuwen.algorithm.passthrough import Passthrough
-from openjiuwen.algorithm.rule_cascade import RuleCascade
-from openjiuwen.algorithm.signal import Signal
-from openjiuwen.algorithm.weighted import Weighted
-
-REGISTRY = {
-    "passthrough": Passthrough,
-    "weighted": Weighted,
-    "rule_cascade": RuleCascade,
-    "signal": Signal,
-    "ensemble": Ensemble,
-}
+from openjiuwen.algorithm.algorithm_provider import (
+    Algorithm,
+    AlgorithmProvider,
+    check_purity,
+)
+from openjiuwen.algorithm.test_algorithm import (
+    REGISTRY,
+    Ensemble,
+    Passthrough,
+    RuleCascade,
+    Signal,
+    Weighted,
+)
 
 __all__ = [
+    "AlgorithmProvider",
+    "Algorithm",
+    "check_purity",
     "REGISTRY",
     "Passthrough",
     "Weighted",

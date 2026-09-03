@@ -9,7 +9,7 @@
 核心能力包括：
 
 - `Router` 门面：`from_config` / `route` / `report`；
-- 可插拔算法槽（`Algorithm`）与状态槽（`StateProvider`），运行期各生效一个；
+- 可插拔算法槽（`AlgorithmProvider`）与状态槽（`StateProvider`），运行期各生效一个；
 - 协议层类型：`RouteRequest`、`Decision`、`ModelSelection`、`Feedback`、`StateView`；
 - 端云两套 TOML profile（进程内 state / 远程 state 客户端）；
 - 面向 Python 的 PyO3 扩展与内置 Python 算法包（骨架）。
@@ -33,8 +33,8 @@ model-router/
 ├── pyproject.toml                  # maturin：云侧 Python wheel
 ├── crates/
 │   ├── protocol/                   # L1 协议层（零依赖：请求 / 决策 / 反馈 / 错误）
-│   ├── state/                      # L2 状态：StateProvider + memory / remote
-│   ├── algorithms/                 # L3 算法：Algorithm trait + 内置实现（feature 门控）
+│   ├── state/                      # L2 状态：StateProvider trait + memory / remote
+│   ├── algorithms/                 # L3 算法：AlgorithmProvider trait + 内置实现（feature 门控）
 │   ├── runtime/                    # L4 装配与运行：Router 门面
 │   └── py/                         # L5 PyO3 绑定（cdylib `_openjiuwen`）
 ├── python/openjiuwen/              # 云侧 Python 门面 + 内置 Python 算法
@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 装配也可以用 `Router::from_toml`（测试或配置中心下发文本时）。`from_profile` 会：
 
-1. 按 `algorithm` 名从注册表取出一个 `Box<dyn Algorithm>`（单槽）；
+1. 按 `algorithm` 名从注册表取出一个 `Box<dyn AlgorithmProvider>`（单槽）；
 2. 按 `state.backend` 选择 `MemoryState` 或 `RemoteState`（单槽）；
 3. 把 `targets.models` 收成目录，供后续 `decide` 剔除 exclusions。
 
@@ -224,11 +224,11 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### 状态层（`openjiuwen-state`）
 
-`StateProvider` 是唯一契约：`snapshot(key) -> StateView`、`report(feedback)`。端侧 `MemoryState`（TTL + 容量上界）；云侧 `RemoteState` 客户端（骨架阶段超时降级为空视图）。
+`StateProvider` 是唯一契约：`snapshot(key) -> StateView`、`report(feedback)`。布局与算法层对称（`state/state_provider.rs` + `state/test_state/`）。端侧 `MemoryState`（TTL + 容量上界）；云侧 `RemoteState` 客户端（骨架阶段超时降级为空视图）。
 
 ### 算法层（`openjiuwen-algorithms`）
 
-`Algorithm::decide(request, ctx) -> Decision` 是算法团队的唯一接入点。内置实现按 feature 门控：`algo-passthrough`、`algo-weighted`、`algo-rule_cascade`、`algo-signal`、`algo-ensemble`。配置选 Python 版时关闭对应 feature，避免双份入产物。`evolving/` 为在线自演进纯计算契约（骨架）。
+`AlgorithmProvider::decide(request, ctx) -> Decision` 是算法团队的唯一接入点。内置实现按 feature 门控：`algo-passthrough`、`algo-weighted`、`algo-rule_cascade`、`algo-signal`、`algo-ensemble`。配置选 Python 版时关闭对应 feature，避免双份入产物。`EvolvingProvider::fit` 是在线自演进纯计算契约（骨架在 `evolving/test_evolving`）。
 
 ### 运行层（`openjiuwen-runtime`）
 
@@ -236,7 +236,7 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### Python 门面（`crates/py` + `python/openjiuwen`）
 
-PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python 算法包装成 `Algorithm` trait。`contrib.PyAlgorithm` 是外部团队供稿 SDK；内置 Python 算法与 Rust 同名。
+PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python 算法包装成 `AlgorithmProvider` trait。`contrib.PyAlgorithm` 是 `algorithm.AlgorithmProvider` 的别名；示意实现在 `algorithm.test_algorithm`。
 
 ## 测试与检查
 
@@ -257,7 +257,7 @@ pytest tests/test_package.py tests/test_native_router.py
 
 已经能用：
 
-- 五层 crate 目录与公开契约（`Algorithm` / `StateProvider` / `Router`）；
+- 五层 crate 目录与公开契约（`AlgorithmProvider` / `StateProvider` / `Router`）；
 - `from_config` 装配算法槽与 state 槽；
 - passthrough 决策、memory 排除 hint、ReAct 集成测试；
 - Python 门面：`RouteRequest` / `ModelSelection` / `Feedback` / `StateClient` 绑定，以及 `register_algorithm` 反向包装。

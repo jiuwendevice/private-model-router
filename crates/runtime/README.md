@@ -4,13 +4,13 @@
 
 `openjiuwen-runtime` 是 openjiuwen-router 的 **L4 运行层**：把协议、状态、算法装配成一个可调用的 `Router`。宿主只看这一个门面——`from_config` 装配，`route` 取决策，`report` 交反馈。**本 crate 不调用模型**；选中谁之后由宿主自己去调后端。
 
-运行期两个插件槽各生效一个：算法槽（`Box<dyn Algorithm>`）和 state 槽（`Arc<dyn StateProvider>`）。端云差异收敛在 TOML profile，不在 `route` 里分叉。
+运行期两个插件槽各生效一个：算法槽（`Box<dyn AlgorithmProvider>`）和 state 槽（`Arc<dyn StateProvider>`）。端云差异收敛在 TOML profile，不在 `route` 里分叉。
 
 依赖 `openjiuwen-protocol`、`openjiuwen-state`、`openjiuwen-algorithms`，以及 `toml` / `serde`（只用于解析 profile）。协议层常用类型在 `lib.rs` 再导出，Rust 宿主可以只依赖本 crate。
 
 ## 为什么要单独一层 runtime
 
-- **宿主接口收敛**：算法作者看 `Algorithm`，状态实现者看 `StateProvider`，宿主只看 `Router`。
+- **宿主接口收敛**：算法作者看 `AlgorithmProvider`，状态实现者看 `StateProvider`，宿主只看 `Router`。
 - **决策与执行分离**：`route` 返回 `Decision` 即结束；流量不经过本层。
 - **状态经入参注入**：`decide_loop` 先 `snapshot`，再把 `StateView` 塞进 `RouteContext`，算法从不直接访问 state。
 - **装配错误提前暴露**：未知算法名、未知 backend、TOML 读失败在 `from_config` 就返回 `RouterError::Config`。
@@ -38,7 +38,7 @@ crates/runtime/
     ├── lib.rs            # 模块入口；重导出 Router 与协议类型
     ├── router.rs         # Router 门面：from_config / route / report
     ├── config.rs         # TOML profile 解析（RouterProfile）
-    ├── registry.rs       # 算法池：按名取出一个 Algorithm
+    ├── registry.rs       # 算法池：按名取出一个 AlgorithmProvider
     ├── decide_loop.rs    # snapshot → RouteContext → decide
     ├── trigger.rs        # Trigger / TriggerSpec（骨架，未挂装配）
     └── training.rs       # TrainingJob / DataSelector / PublishPlan（骨架）
@@ -147,17 +147,17 @@ cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
 
 ### 注册表（`registry.rs`）
 
-按字符串从算法池取出一个 `Box<dyn Algorithm>`。单槽：候选可以有很多，一个 `Router` 只持有一个实例。名字写错或 feature 未编译 → `unknown or disabled algorithm: {name}`。
+按字符串从算法池取出一个 `Box<dyn AlgorithmProvider>`。单槽：候选可以有很多，一个 `Router` 只持有一个实例。名字写错或 feature 未编译 → `unknown or disabled algorithm: {name}`。
 
 ### 触发与训练（`trigger.rs` / `training.rs`）
 
-`Trigger` / `TriggerSpec`、`TrainingJob` / `DataSelector` / `PublishPlan` 类型已在，判定和后台调度还没有接到 `from_profile` 或 `route`。自演进计算在 `openjiuwen-algorithms::evolving`，本层只负责何时跑、怎么写回。
+`Trigger` / `TriggerSpec`、`TrainingJob` / `DataSelector` / `PublishPlan` 类型已在，判定和后台调度还没有接到 `from_profile` 或 `route`。自演进计算在 `openjiuwen-algorithms::EvolvingProvider`，本层只负责何时跑、怎么写回。
 
 ### 与其它 crate 的关系
 
 ```text
 宿主 → runtime::Router
-         ├─ algorithms::Algorithm（decide）
+         ├─ algorithms::AlgorithmProvider（decide）
          └─ state::StateProvider（snapshot / report）
 二者之间没有直接调用；耦合点是 RouteContext.view。
 ```

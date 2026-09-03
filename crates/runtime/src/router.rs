@@ -5,9 +5,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use openjiuwen_algorithms::Algorithm;
+use openjiuwen_algorithms::AlgorithmProvider;
 use openjiuwen_protocol::{Decision, Feedback, RouteHint, RouteRequest, RouterError, TargetSet};
-use openjiuwen_state::{MemoryState, RemoteState, StateProvider};
+use openjiuwen_state::state::test_state as backends;
+use openjiuwen_state::StateProvider;
 
 use crate::config::RouterProfile;
 use crate::decide_loop;
@@ -20,7 +21,7 @@ pub trait KvCacheCoordinator: Send + Sync {
 
 /// 已装配的路由实例。运行期算法槽与 state 槽各生效一个。
 pub struct Router {
-    algorithm: Box<dyn Algorithm>,
+    algorithm: Box<dyn AlgorithmProvider>,
     state: Arc<dyn StateProvider>,
     targets: TargetSet,
     seed: AtomicU64,
@@ -54,14 +55,14 @@ impl Router {
             "memory" => {
                 let ttl: Duration = Duration::from_secs(profile.state.ttl_secs.unwrap_or(300));
                 let cap = profile.state.max_entries.unwrap_or(1024);
-                Ok(Arc::new(MemoryState::new(ttl, cap)))
+                Ok(Arc::new(backends::memory::MemoryState::new(ttl, cap)))
             }
             "remote" => {
                 let endpoint = profile.state.endpoint.clone().ok_or_else(|| {
                     RouterError::Config("remote state requires endpoint".into())
                 })?;
                 let timeout = Duration::from_millis(profile.state.timeout_ms.unwrap_or(5));
-                Ok(Arc::new(RemoteState::new(endpoint, timeout)))
+                Ok(Arc::new(backends::remote::RemoteState::new(endpoint, timeout)))
             }
             other => Err(RouterError::Config(format!("unknown state backend: {other}"))),
         }
@@ -69,7 +70,7 @@ impl Router {
 
     /// 用已构造的算法与 state 装配。PyO3 可注入 Python 算法或 StateClient。
     pub fn from_parts(
-        algorithm: Box<dyn Algorithm>,
+        algorithm: Box<dyn AlgorithmProvider>,
         state: Arc<dyn StateProvider>,
         targets: TargetSet,
     ) -> Self {
@@ -82,7 +83,7 @@ impl Router {
         }
     }
 
-    pub fn replace_algorithm(&mut self, algorithm: Box<dyn Algorithm>) {
+    pub fn replace_algorithm(&mut self, algorithm: Box<dyn AlgorithmProvider>) {
         self.algorithm = algorithm;
     }
 

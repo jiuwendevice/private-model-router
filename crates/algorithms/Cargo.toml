@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "L3 算法层：纯函数 Algorithm / Evolving 契约与内置实现"
+description = "L3 算法层：纯函数 AlgorithmProvider / EvolvingProvider 契约与示意实现"
 
 [features]
 default = [

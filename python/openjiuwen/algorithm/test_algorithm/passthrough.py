@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-"""与 Rust passthrough.rs 同功能：选第一个可用目标。"""
+"""与 Rust `algorithm/test_algorithm/passthrough.rs` 同功能：选第一个可用目标。"""
 
-from openjiuwen.contrib import PyAlgorithm
+from openjiuwen.algorithm.algorithm_provider import AlgorithmProvider
 
 
-class Passthrough(PyAlgorithm):
+class Passthrough(AlgorithmProvider):
     name = "passthrough"
 
     def decide(self, request, ctx):

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from openjiuwen.algorithm.passthrough import Passthrough
-from openjiuwen.contrib import PyAlgorithm
+from openjiuwen.algorithm.algorithm_provider import AlgorithmProvider
+from openjiuwen.algorithm.test_algorithm.passthrough import Passthrough
 
 
-class Weighted(PyAlgorithm):
+class Weighted(AlgorithmProvider):
     name = "weighted"
 
     def decide(self, request, ctx):

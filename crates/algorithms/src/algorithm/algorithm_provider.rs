@@ -1,6 +1,6 @@
-//! 路由算法契约。纯函数：不做 I/O，不持有可变状态。
+//! [`AlgorithmProvider`]：算法实现者的唯一接入点。
 //!
-//! 同样的 `(request, ctx)` 必须返回同样的 [`Decision`]。
+//! 纯函数，不做 I/O、不持有可变状态。同样的 `(request, ctx)` 必须返回同样的 [`Decision`]。
 
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError, StateView, TargetSet};
 
@@ -15,8 +15,8 @@ pub struct RouteContext {
     pub seed: u64,
 }
 
-/// 算法团队的唯一接入点。
-pub trait Algorithm: Send + Sync {
+/// 算法槽插件契约。与 state 侧 `StateProvider` 对位：运行期单槽选一。
+pub trait AlgorithmProvider: Send + Sync {
     /// 稳定的低基数名称，用于注册表与遥测。
     fn name(&self) -> &str;
 

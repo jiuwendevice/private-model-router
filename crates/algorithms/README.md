@@ -4,9 +4,9 @@
 
 `openjiuwen-algorithms` 是 openjiuwen-router 的 **L3 算法层**：纯函数集合，只读 `RouteRequest` 与 `RouteContext`，返回 `Decision`。本 crate **不做 I/O、不持有可变状态**；跨请求信息由 runtime 从 state 快照后经 `ctx.view` 注入。
 
-算法团队的唯一接入点是 `Algorithm` trait（`name` / `decide`）。在线自演进是另一条契约 `Evolving`（`name` / `fit`），同样纯计算；拉数据、调度、CAS 写回由 runtime 的 `TrainingJob` 履行。
+算法团队的唯一接入点是 `AlgorithmProvider` trait（`name` / `decide`），与 state 侧 `StateProvider` 对位。在线自演进是另一条契约 `EvolvingProvider`（`name` / `fit`），同样纯计算；拉数据、调度、CAS 写回由 runtime 的 `TrainingJob` 履行。
 
-本 crate 只依赖 `openjiuwen-protocol`。内置实现按 `algo-*` / `evolving-mf` feature 条件编译，配置选用 Python 版时关闭对应 feature，磁盘源码保留、不入产物。
+本 crate 只依赖 `openjiuwen-protocol`。示意实现按 `algo-*` / `evolving-mf` feature 条件编译，配置选用 Python 版时关闭对应 feature，磁盘源码保留、不入产物。
 
 ## 为什么算法必须是纯函数
 
@@ -23,19 +23,26 @@ crates/algorithms/
 ├── Cargo.toml
 ├── README.md
 └── src/
-    ├── lib.rs              # 模块入口；各算法按 algo-* feature 条件编译
-    ├── algorithm.rs        # Algorithm trait + RouteContext（唯一路由契约）
-    ├── passthrough.rs      # ← #[cfg(feature = "algo-passthrough")]
-    ├── weighted.rs         # ← #[cfg(feature = "algo-weighted")]
-    ├── rule_cascade.rs     # ← #[cfg(feature = "algo-rule_cascade")]
-    ├── signal.rs           # ← #[cfg(feature = "algo-signal")]
-    ├── ensemble.rs         # ← #[cfg(feature = "algo-ensemble")]
-    └── evolving/
-        ├── mod.rs          # Evolving trait（独立插件契约）
-        └── mf.rs           # MfWeights：fit 纯重算（骨架）
+    ├── lib.rs
+    ├── algorithm/                    # 公共契约
+    │   ├── mod.rs                    # 再导出契约；声明 test_algorithm
+    │   ├── algorithm_provider.rs     # AlgorithmProvider trait + RouteContext
+    │   └── test_algorithm/           # 示意实现（按 algo-* feature 编译）
+    │       ├── mod.rs
+    │       ├── passthrough.rs
+    │       ├── weighted.rs
+    │       ├── rule_cascade.rs
+    │       ├── signal.rs
+    │       └── ensemble.rs
+    └── evolving/                     # 自演进契约
+        ├── mod.rs                    # 再导出契约；声明 test_evolving
+        ├── evolving_provider.rs      # EvolvingProvider trait + TrainingBatch / Artifact
+        └── test_evolving/            # 示意实现（按 evolving-* feature 编译）
+            ├── mod.rs
+            └── mf.rs                 # MfWeights：fit 纯重算（骨架）
 ```
 
-对应的 Python 同名实现在仓库 `python/openjiuwen/algorithm/`，与本 crate 构建时按算法名去重，不在本 crate 内。
+对应的 Python 布局相同：契约在 `python/openjiuwen/algorithm/algorithm_provider.py`，示意在 `python/openjiuwen/algorithm/test_algorithm/`。
 
 ## 快速开始
 
@@ -62,15 +69,15 @@ cargo build -p openjiuwen-algorithms --no-default-features --features algo-passt
 
 ## 样例 1：实现一个算法
 
-`Algorithm` 只含两个方法。`ctx.view` 为空时仍须给出合法 `Decision`。
+`AlgorithmProvider` 只含两个方法。`ctx.view` 为空时仍须给出合法 `Decision`。
 
 ```rust
-use openjiuwen_algorithms::{Algorithm, RouteContext};
+use openjiuwen_algorithms::{AlgorithmProvider, RouteContext};
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
 pub struct FirstAvailable;
 
-impl Algorithm for FirstAvailable {
+impl AlgorithmProvider for FirstAvailable {
     fn name(&self) -> &str {
         "first_available"
     }
@@ -97,17 +104,17 @@ impl Algorithm for FirstAvailable {
 
 返回的 `Decision` 三个字段：`selected_model_id`（与 `TargetSet` 对齐的语义名）、`reasoning`（必填）、`is_answer_call`（本架构默认应答调用）。
 
-## 样例 2：在线自演进（Evolving）
+## 样例 2：在线自演进（EvolvingProvider）
 
-`Evolving::fit` 回答「给我一批历史反馈，重算出一份新参数集」。不允许 I/O。
+`EvolvingProvider::fit` 回答「给我一批历史反馈，重算出一份新参数集」。不允许 I/O。
 
 ```rust
 use std::sync::Arc;
-use openjiuwen_algorithms::evolving::{Artifact, Evolving, TrainingBatch};
+use openjiuwen_algorithms::evolving::{Artifact, EvolvingProvider, TrainingBatch};
 
 pub struct MfWeights;
 
-impl Evolving for MfWeights {
+impl EvolvingProvider for MfWeights {
     fn name(&self) -> &str {
         "mf-weights"
     }
@@ -125,9 +132,9 @@ impl Evolving for MfWeights {
 
 ## 主要模块
 
-### `Algorithm`（路由决策）
+### `AlgorithmProvider`（路由决策）
 
-运行期单槽：一个 `Router` 只跑一个实现。候选来自注册表（`runtime::registry`），由 profile `algorithm = "..."` 选中。
+运行期单槽：一个 `Router` 只跑一个实现。候选来自注册表（`runtime::registry`），由 profile `algorithm = "..."` 选中。示意实现在 `algorithm::test_algorithm`：
 
 | 实现 | feature | `name()` | 现状 |
 |------|---------|----------|------|
@@ -137,9 +144,9 @@ impl Evolving for MfWeights {
 | `Signal` | `algo-signal` | `signal` | 骨架：退化为直通 |
 | `Ensemble` | `algo-ensemble` | `ensemble` | 骨架：退化为直通 |
 
-### `Evolving`（参数自优化）
+### `EvolvingProvider`（参数自优化）
 
-与 `Algorithm` 同为算法团队交付面，但不占路由单槽。由触发机制驱动，可多 job 并存。骨架提供 `MfWeights`（`evolving-mf`），`fit` 返回空 `Artifact`。
+与 `AlgorithmProvider` 同为算法团队交付面，但不占路由单槽。由触发机制驱动，可多 job 并存。示意实现在 `evolving::test_evolving`：骨架提供 `MfWeights`（`evolving-mf`），`fit` 返回空 `Artifact`。
 
 ### 与 runtime / state 的关系
 

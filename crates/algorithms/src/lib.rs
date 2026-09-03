@@ -1,17 +1,8 @@
-//! L3 算法层。各内置算法按 `algo-*` feature 条件编译；契约唯一在 [`algorithm::Algorithm`]。
+//! L3 算法层。契约在 [`algorithm`] / [`evolving`]；
+//! 示意实现在 [`algorithm::test_algorithm`] / [`evolving::test_evolving`]。
 
 pub mod algorithm;
 pub mod evolving;
 
-#[cfg(feature = "algo-passthrough")]
-pub mod passthrough;
-#[cfg(feature = "algo-weighted")]
-pub mod weighted;
-#[cfg(feature = "algo-rule_cascade")]
-pub mod rule_cascade;
-#[cfg(feature = "algo-signal")]
-pub mod signal;
-#[cfg(feature = "algo-ensemble")]
-pub mod ensemble;
-
-pub use algorithm::{Algorithm, RouteContext};
+pub use algorithm::{AlgorithmProvider, RouteContext};
+pub use evolving::{Artifact, EvolvingProvider, TrainingBatch};
