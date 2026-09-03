@@ -14,7 +14,7 @@
 - 端云两套 TOML profile（进程内 state / 远程 state 客户端）；
 - 面向 Python 的 PyO3 扩展与内置 Python 算法包（骨架）。
 
-设计蓝图见 [`openjiuwen-router-blueprint.html`](openjiuwen-router-blueprint.html)。当前仓库是按蓝图搭起来的 workspace 骨架：目录、契约、装配和一条可跑的 ReAct 验证路径已经对齐；加权算法、远程 state gRPC、完整 PyO3 绑定仍是桩。
+架构与插件接入指南见 [`docs/zh/architecture.md`](docs/zh/architecture.md)（[English](docs/en/architecture.md)）。当前仓库是按蓝图搭起来的 workspace 骨架：目录、契约、装配和一条可跑的 ReAct 验证路径已经对齐；加权算法、远程 state gRPC、完整 PyO3 绑定仍是桩。
 
 ## 为什么选择这套内核
 
@@ -39,14 +39,21 @@ model-router/
 │   └── py/                         # L5 PyO3 绑定（cdylib `_openjiuwen`）
 ├── python/
 │   ├── openjiuwen/                 # 云侧 Python 门面、算法契约、随包算法 demo
+│   ├── test_algo/                  # 包外自定义算法示例（import 时按 name 登记）
 │   └── custom_test_algo/           # 安装 wheel 后自定义算法并自行注册
 ├── config/
 │   ├── edge.toml                   # 端侧：memory 进程内
 │   └── cloud.toml                  # 云侧：remote state
-├── tests/
-│   ├── react_agent.rs              # 最小 ReAct 宿主，验证路由主路径
-│   └── test_package.py             # Python 包布局冒烟
-└── openjiuwen-router-blueprint.html
+├── examples/
+│   ├── python_integration.py       # Python 宿主集成示例（maturin develop 后可运行）
+│   └── rust_integration/           # Rust 宿主集成示例（独立 mini crate，cargo run）
+├── docs/
+│   ├── zh/architecture.md          # 架构与插件接入指南（中文）
+│   └── en/architecture.md          # Architecture and plugin guide (English)
+└── tests/
+    ├── react_agent.rs              # 最小 ReAct 宿主，验证路由主路径
+    ├── react_agent.py              # 同一剧本的 Python 宿主版
+    └── test_package.py             # Python 包布局冒烟
 ```
 
 ## 快速开始
@@ -217,6 +224,15 @@ test react_agent_routes_retries_and_answers ... ok
 ```
 
 这条路径覆盖蓝图图 2 的 ①–⑨。ReAct 循环本身属于宿主，不属于 Router。
+
+## 样例 3：最小宿主集成（examples/）
+
+[`examples/`](examples/) 下是两个去掉 ReAct 循环、只保留路由闭环的最小示例，适合作为接入自己项目的起点：
+
+- Python：[`examples/python_integration.py`](examples/python_integration.py)，`maturin develop` 后运行 `python examples/python_integration.py`；
+- Rust：[`examples/rust_integration/`](examples/rust_integration/)，独立 mini crate，`cd examples/rust_integration && cargo run`。
+
+两个示例演示同一条闭环：`route` 选模 → 宿主自己调模型（mock）→ `report` 回报 → 失败排除后自动换模。
 
 ## 主要模块
 
