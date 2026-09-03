@@ -12,9 +12,9 @@
 - 可插拔算法槽（`Algorithm`）与状态槽（`StateProvider`），运行期各生效一个；
 - 协议层类型：`RouteRequest`、`Decision`、`ModelSelection`、`Feedback`、`StateView`；
 - 端云两套 TOML profile（进程内 state / 远程 state 客户端）；
-- 面向 Python 的 PyO3 扩展与内置 Python 算法包（骨架）。
+- 面向 Python 的 PyO3 扩展，以及 Python 算法反向注册到 Rust 的示例。
 
-设计蓝图见 [`openjiuwen-router-blueprint.html`](openjiuwen-router-blueprint.html)。当前仓库是按蓝图搭起来的 workspace 骨架：目录、契约、装配和一条可跑的 ReAct 验证路径已经对齐；加权算法、远程 state gRPC、完整 PyO3 绑定仍是桩。
+设计蓝图当前位于同级 `openjiuwen_router/doc/openjiuwen-router-blueprint.html`。本仓库是按该蓝图搭起来的 workspace 骨架：目录、契约、装配和一条可跑的 ReAct 验证路径已经对齐；加权算法、远程 state gRPC 与部分 Python 宿主类型绑定仍是桩。
 
 ## 为什么选择这套内核
 
@@ -37,7 +37,9 @@ model-router/
 │   ├── algorithms/                 # L3 算法：Algorithm trait + 内置实现（feature 门控）
 │   ├── runtime/                    # L4 装配与运行：Router 门面
 │   └── py/                         # L5 PyO3 绑定（cdylib `_openjiuwen`）
-├── python/openjiuwen/              # 云侧 Python 门面 + 内置 Python 算法
+├── python/
+│   ├── openjiuwen/             # 正式 Python 包根：宿主接口 + PyO3 注册入口
+│   └── test/                   # 团队 Python 算法及回接 Rust 的示例
 ├── config/
 │   ├── edge.toml                   # 端侧：memory 进程内
 │   └── cloud.toml                  # 云侧：remote state
@@ -88,12 +90,12 @@ cargo build -p openjiuwen-runtime
 maturin develop
 ```
 
-安装后可以使用 `openjiuwen` 包。该包重导出 PyO3 扩展 `_openjiuwen` 中的 `Router` / `Decision`；扩展未构建时，内置 Python 算法与 `contrib.PyAlgorithm` 仍可单独导入。
+安装后可以使用 `openjiuwen` 包。该包根目录重导出 PyO3 扩展 `_openjiuwen` 中的 `Router` / `Decision`，并提供 `PyAlgorithm` / `register_algorithm`。扩展未构建时，纯 Python 的算法契约和纯度检查仍可单独导入。
 
-运行 Python 包布局冒烟（需已安装 pytest，并把 `python/` 加入 `PYTHONPATH`）：
+运行 Python 包布局和算法示例测试（需已安装 pytest，并把 `python/` 加入 `PYTHONPATH`）：
 
 ```bash
-pytest tests/test_package.py
+pytest tests/test_package.py python/test/test_python_algorithm.py
 ```
 
 ## 样例 1：Rust 原生宿主
@@ -207,7 +209,7 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### 算法层（`openjiuwen-algorithms`）
 
-`Algorithm::decide(request, ctx) -> Decision` 是算法团队的唯一接入点。内置实现按 feature 门控：`algo-passthrough`、`algo-weighted`、`algo-rule_cascade`、`algo-signal`、`algo-ensemble`。配置选 Python 版时关闭对应 feature，避免双份入产物。`evolving/` 为在线自演进纯计算契约（骨架）。
+`Algorithm::decide(request, ctx) -> Decision` 是算法团队的唯一接入点。内置 Rust 实现按 feature 门控：`algo-passthrough`、`algo-weighted`、`algo-rule_cascade`、`algo-signal`、`algo-ensemble`。Python 算法作为团队扩展，通过 PyO3 适配后占用同一个算法槽；示例见 `python/test/`。`evolving/` 为在线自演进纯计算契约（骨架）。
 
 ### 运行层（`openjiuwen-runtime`）
 
@@ -215,7 +217,7 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### Python 门面（`crates/py` + `python/openjiuwen`）
 
-PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。`contrib.PyAlgorithm` 是外部团队供稿 SDK；内置 Python 算法与 Rust 同名，构建时按算法名去重。
+PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正式包根导出 `Router` / `Decision` / `PyAlgorithm` / `register_algorithm`；`crates/py` 中的反向适配器持有 Python 对象，并实现 Rust `Algorithm` trait。团队算法示例放在 `python/test/`，不混入正式包。
 
 ## 测试与检查
 
@@ -229,7 +231,7 @@ cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
 Python 包布局冒烟：
 
 ```bash
-pytest tests/test_package.py
+pytest tests/test_package.py python/test/test_python_algorithm.py
 ```
 
 ## 当前进度
@@ -245,7 +247,7 @@ pytest tests/test_package.py
 - `weighted` / `signal` / `ensemble` / `rule_cascade` 目前退化为「选第一个」；
 - `RemoteState` 尚未真正发 gRPC（超时降级为空视图）；
 - `[[evolving]]` 能解析，但未挂到 `Trigger` / `TrainingJob`；
-- Python 门面需 `maturin develop`；`Feedback` / `StateClient` 的 PyO3 绑定未完成；
+- Python 门面需 `maturin develop`；`Feedback` / `StateClient` 的 PyO3 绑定未完成；Python 算法的注册、回调与 Decision 转换已接通；
 - `report` 在 `memory` 后端下是同步写入，蓝图中的异步旁路尚未做。
 
 ## 贡献

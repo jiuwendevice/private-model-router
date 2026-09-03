@@ -40,6 +40,24 @@ impl Router {
     /// 从配置文件创建路由实例。返回的是 Result<Router, RouterError> 类型。
     pub fn from_profile(profile: RouterProfile) -> Result<Self, RouterError> {
         let algorithm = registry::create_algorithm(&profile.algorithm)?;
+        Self::from_profile_with_algorithm(profile, algorithm)
+    }
+
+    /// 用宿主提供的算法装配 Router。
+    ///
+    /// PyO3 层用这个入口把 Python 对象包装成 [`Algorithm`] 后占用
+    /// 与 Rust 内置算法相同的单算法槽。
+    pub fn from_profile_with_algorithm(
+        profile: RouterProfile,
+        algorithm: Box<dyn Algorithm>,
+    ) -> Result<Self, RouterError> {
+        if algorithm.name() != profile.algorithm {
+            return Err(RouterError::Config(format!(
+                "configured algorithm `{}` does not match injected algorithm `{}`",
+                profile.algorithm,
+                algorithm.name()
+            )));
+        }
         let state: Arc<dyn StateProvider> = match profile.state.backend.as_str() {
             // 内存状态实现。
             "memory" => {
@@ -123,5 +141,47 @@ models = ["alpha", "beta"]
         let d = router.route(&req, &RouteHint::default()).expect("route");
         assert_eq!(d.selected_model_id, "alpha");
         assert!(d.is_answer_call);
+    }
+
+    struct LastTarget;
+
+    impl Algorithm for LastTarget {
+        fn name(&self) -> &str {
+            "last_target"
+        }
+
+        fn decide(
+            &self,
+            _request: &RouteRequest,
+            ctx: &openjiuwen_algorithms::RouteContext,
+        ) -> Result<Decision, RouterError> {
+            ctx.targets
+                .models
+                .last()
+                .map(|target| Decision::answer(target, "injected test algorithm"))
+                .ok_or(RouterError::NoTarget)
+        }
+    }
+
+    #[test]
+    fn host_algorithm_occupies_the_runtime_slot() {
+        let profile = RouterProfile::from_toml(
+            r#"
+algorithm = "last_target"
+[state]
+backend = "memory"
+[targets]
+models = ["alpha", "beta"]
+"#,
+        )
+        .expect("profile");
+        let router = Router::from_profile_with_algorithm(profile, Box::new(LastTarget))
+            .expect("assemble with injected algorithm");
+
+        let decision = router
+            .route(&RouteRequest::default(), &RouteHint::default())
+            .expect("route");
+        assert_eq!(decision.selected_model_id, "beta");
+        assert_eq!(router.algorithm_name(), "last_target");
     }
 }

@@ -12,7 +12,7 @@ requires-python = ">=3.8"
 manifest-path = "crates/py/Cargo.toml"
 python-source = "python"
 module-name = "openjiuwen._openjiuwen"
-features = ["pyo3/extension-module"]
+features = ["extension-module"]
 
 [tool.pytest.ini_options]
 pythonpath = ["python"]

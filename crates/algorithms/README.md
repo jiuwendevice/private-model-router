@@ -35,7 +35,9 @@ crates/algorithms/
         └── mf.rs           # MfWeights：fit 纯重算（骨架）
 ```
 
-对应的 Python 同名实现在仓库 `python/openjiuwen/algorithm/`，与本 crate 构建时按算法名去重，不在本 crate 内。
+Python 团队算法不作为本 crate 的内置实现。它们经 PyO3 适配为同一个
+`Algorithm` trait，再注入 runtime 的单算法槽。可运行示例在仓库
+`python/test/`。
 
 ## 快速开始
 

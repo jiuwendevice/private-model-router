@@ -10,7 +10,15 @@ description = "L5 PyO3 绑定：把 Rust 内核导出为原生扩展 _openjiuwen
 name = "_openjiuwen"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
+
 [dependencies]
+openjiuwen-algorithms = { workspace = true, default-features = false }
 openjiuwen-protocol.workspace = true
 openjiuwen-runtime = { workspace = true }
 pyo3 = { workspace = true }
+
+[build-dependencies]
+pyo3-build-config = "0.23"
