@@ -1,10 +1,24 @@
-//! L3 算法层。测试算法及自演进实现统一放在 [`test_algo`]。
+//! L3 算法层。公共插件契约与测试实现分离。
 
+pub mod algorithm_provider;
+pub mod evolving_provider;
 pub mod test_algo;
 
-pub use test_algo::evolving::{Artifact, EvolvingProvider, TrainingBatch};
-pub use test_algo::{AlgorithmProvider, RouteContext};
+pub use algorithm_provider::{AlgorithmProvider, RouteContext};
+pub use evolving_provider::{Artifact, EvolvingProvider, TrainingBatch};
 
-// 保留原模块路径，避免下游升级目录布局时同时发生 API 破坏。
-pub use test_algo as algorithm;
-pub use test_algo::evolving;
+/// 旧版算法模块路径的兼容导出。新代码应从 crate 根导入契约。
+pub mod algorithm {
+    pub use crate::algorithm_provider::{AlgorithmProvider, RouteContext};
+    pub use crate::test_algo::evolving;
+    pub use crate::test_algo::routing as test_algorithm;
+}
+
+/// 旧版自演进模块路径的兼容导出。新代码应从 crate 根导入契约。
+pub mod evolving {
+    #[doc(hidden)]
+    pub use crate::evolving_provider as evolving_provider;
+    pub use crate::evolving_provider::{Artifact, EvolvingProvider, TrainingBatch};
+
+    pub use crate::test_algo::evolving as test_evolving;
+}

@@ -226,11 +226,11 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### 状态层（`openjiuwen-state`）
 
-`StateProvider` 是唯一契约：`snapshot(key) -> StateView`、`report(feedback)`。布局与算法层对称（`state/state_provider.rs` + `state/test_state/`）。端侧 `MemoryState`（TTL + 容量上界）；云侧 `RemoteState` 客户端（骨架阶段超时降级为空视图）。
+`StateProvider` 是唯一契约：`snapshot(key) -> StateView`、`report(feedback)`。契约定义在 `state_provider.rs`，测试/示意实现在 `test_state/`。端侧 `MemoryState`（TTL + 容量上界）；云侧 `RemoteState` 客户端（骨架阶段超时降级为空视图）。
 
 ### 算法层（`openjiuwen-algorithms`）
 
-`AlgorithmProvider::decide(request, ctx) -> Decision` 是算法团队的唯一接入点。内置实现按 feature 门控：`algo-passthrough`、`algo-weighted`、`algo-rule_cascade`、`algo-signal`、`algo-ensemble`。配置选 Python 版时关闭对应 feature，避免双份入产物。`EvolvingProvider::fit` 是在线自演进纯计算契约（骨架在 `test_algo/evolving/test_evolving`）。
+`AlgorithmProvider::decide(request, ctx) -> Decision` 是算法团队的唯一接入点，定义在 `algorithm_provider.rs`；`EvolvingProvider::fit` 是在线自演进纯计算契约，定义在 `evolving_provider.rs`。测试/示意实现统一放在 `test_algo/`，并按 feature 门控；配置选 Python 版时关闭对应 feature，避免双份入产物。
 
 ### 运行层（`openjiuwen-runtime`）
 

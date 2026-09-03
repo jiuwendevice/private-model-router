@@ -1,13 +1,13 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::test_algo::{AlgorithmProvider, RouteContext};
+use crate::{AlgorithmProvider, RouteContext};
 
-/// 加权选择。骨架阶段退化为直通，权重表后续注入。
-pub struct Weighted;
+/// 直通：选目标集中第一个未被排除的模型。
+pub struct Passthrough;
 
-impl AlgorithmProvider for Weighted {
+impl AlgorithmProvider for Passthrough {
     fn name(&self) -> &str {
-        "weighted"
+        "passthrough"
     }
 
     fn decide(&self, request: &RouteRequest, ctx: &RouteContext) -> Result<Decision, RouterError> {
@@ -15,7 +15,7 @@ impl AlgorithmProvider for Weighted {
         let model = available.first().ok_or(RouterError::NoTarget)?;
         Ok(Decision::answer(
             model,
-            "weighted: stub, falls back to first target",
+            "passthrough: first available target",
         ))
     }
 }

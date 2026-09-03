@@ -1,13 +1,13 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::test_algo::{AlgorithmProvider, RouteContext};
+use crate::{AlgorithmProvider, RouteContext};
 
-/// 信号驱动。骨架阶段退化为直通。
-pub struct Signal;
+/// 规则级联。骨架阶段退化为直通。
+pub struct RuleCascade;
 
-impl AlgorithmProvider for Signal {
+impl AlgorithmProvider for RuleCascade {
     fn name(&self) -> &str {
-        "signal"
+        "rule_cascade"
     }
 
     fn decide(&self, request: &RouteRequest, ctx: &RouteContext) -> Result<Decision, RouterError> {
@@ -15,7 +15,7 @@ impl AlgorithmProvider for Signal {
         let model = available.first().ok_or(RouterError::NoTarget)?;
         Ok(Decision::answer(
             model,
-            "signal: stub, falls back to first target",
+            "rule_cascade: stub, falls back to first target",
         ))
     }
 }

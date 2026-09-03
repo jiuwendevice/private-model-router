@@ -7,8 +7,7 @@ use std::time::Duration;
 
 use openjiuwen_algorithms::AlgorithmProvider;
 use openjiuwen_protocol::{Decision, Feedback, RouteHint, RouteRequest, RouterError, TargetSet};
-use openjiuwen_state::state::test_state as backends;
-use openjiuwen_state::StateProvider;
+use openjiuwen_state::{test_state as backends, StateProvider};
 
 use crate::config::RouterProfile;
 use crate::decide_loop;

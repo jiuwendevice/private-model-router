@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use openjiuwen_algorithms::test_algo::evolving::{Artifact, EvolvingProvider, TrainingBatch};
+use openjiuwen_algorithms::{Artifact, EvolvingProvider, TrainingBatch};
 
 /// 按 watermark 从 state 拉增量反馈。骨架返回空 batch。
 pub struct DataSelector {

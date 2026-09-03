@@ -82,7 +82,7 @@ cargo check -p openjiuwen
 | `router.with_kv_coordinator(cb)` | `KvCacheCoordinator::on_switch` | 保存 Python 回调；`route` 尚未触发切换 |
 | `router.replace_algorithm(obj)` | `Router::replace_algorithm` | 热替换算法槽（通常是 `PyAlgorithm`） |
 | `router.replace_state(state)` | `Router::replace_state` | 热替换 state 槽，目前接受 `StateClient` |
-| `StateClient(endpoint, timeout_ms=5)` | `state::RemoteState` | 显式远程客户端；注入 `from_config(..., state=...)` |
+| `StateClient(endpoint, timeout_ms=5)` | `openjiuwen_state::RemoteState` | 显式远程客户端；注入 `from_config(..., state=...)` |
 | `StateClientConfig(endpoint, timeout_ms=5).client()` | 同上 | 纯 Python 配置对象，`.client()` 才构造扩展类型 |
 | `register_algorithm(obj)` | `PyAlgorithmAdapter` | 按 `obj.name` 写入进程内注册表；`from_config` 优先于 Rust 内置 |
 

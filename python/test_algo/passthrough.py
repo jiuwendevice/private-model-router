@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""与 Rust `test_algo/test_algorithm/passthrough.rs` 同功能：选第一个可用目标。"""
+"""与 Rust `test_algo/routing/passthrough.rs` 同功能：选第一个可用目标。"""
 
 from openjiuwen.algorithm_provider import AlgorithmProvider
 

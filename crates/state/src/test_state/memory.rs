@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use openjiuwen_protocol::{Feedback, Outcome, RoutingKey, StateView};
 
-use crate::state::{CasConflict, StateProvider};
+use crate::{CasConflict, StateProvider};
 
 #[derive(Clone)]
 struct Entry {

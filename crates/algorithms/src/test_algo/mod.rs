@@ -1,7 +1,12 @@
-//! 测试算法集合：路由契约在 [`algorithm_provider`]，自演进代码在 [`evolving`]。
+//! 测试实现集合；公共插件契约位于 crate 根模块。
 
-pub mod algorithm_provider;
 pub mod evolving;
-pub mod test_algorithm;
+pub mod routing;
 
-pub use algorithm_provider::{AlgorithmProvider, RouteContext};
+// 兼容旧版公开路径；契约定义仍位于 crate 根模块。
+#[doc(hidden)]
+pub use crate::algorithm_provider as algorithm_provider;
+#[doc(hidden)]
+pub use crate::algorithm_provider::{AlgorithmProvider, RouteContext};
+#[doc(hidden)]
+pub use routing as test_algorithm;

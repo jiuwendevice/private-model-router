@@ -23,23 +23,21 @@ crates/algorithms/
 ├── Cargo.toml
 ├── README.md
 └── src/
-    ├── lib.rs
-    └── test_algo/                    # 测试算法及自演进实现
-        ├── mod.rs                    # 再导出契约；声明 test_algorithm / evolving
-        ├── algorithm_provider.rs     # AlgorithmProvider trait + RouteContext
-        ├── test_algorithm/           # 示意实现（按 algo-* feature 编译）
+    ├── lib.rs                        # 统一公开导出
+    ├── algorithm_provider.rs         # AlgorithmProvider trait + RouteContext
+    ├── evolving_provider.rs          # EvolvingProvider trait + TrainingBatch / Artifact
+    └── test_algo/                    # 仅存放测试/示意实现
+        ├── mod.rs
+        ├── routing/                  # 路由示意实现（按 algo-* feature 编译）
         │   ├── mod.rs
         │   ├── passthrough.rs
         │   ├── weighted.rs
         │   ├── rule_cascade.rs
         │   ├── signal.rs
         │   └── ensemble.rs
-        └── evolving/                 # 自演进契约与示意实现
+        └── evolving/                 # 自演进示意实现
             ├── mod.rs
-            ├── evolving_provider.rs  # EvolvingProvider trait + TrainingBatch / Artifact
-            └── test_evolving/
-                ├── mod.rs
-                └── mf.rs             # MfWeights：fit 纯重算（骨架）
+            └── mf.rs                 # MfWeights：fit 纯重算（骨架）
 ```
 
 Python 契约在 `python/openjiuwen/algorithm_provider.py`，Python 测试算法集中在 `python/test_algo/`。
@@ -110,7 +108,7 @@ impl AlgorithmProvider for FirstAvailable {
 
 ```rust
 use std::sync::Arc;
-use openjiuwen_algorithms::test_algo::evolving::{Artifact, EvolvingProvider, TrainingBatch};
+use openjiuwen_algorithms::{Artifact, EvolvingProvider, TrainingBatch};
 
 pub struct MfWeights;
 
@@ -134,7 +132,7 @@ impl EvolvingProvider for MfWeights {
 
 ### `AlgorithmProvider`（路由决策）
 
-运行期单槽：一个 `Router` 只跑一个实现。候选来自注册表（`runtime::registry`），由 profile `algorithm = "..."` 选中。示意实现在 `test_algo::test_algorithm`：
+运行期单槽：一个 `Router` 只跑一个实现。候选来自注册表（`runtime::registry`），由 profile `algorithm = "..."` 选中。示意实现在 `test_algo::routing`：
 
 | 实现 | feature | `name()` | 现状 |
 |------|---------|----------|------|
@@ -146,7 +144,7 @@ impl EvolvingProvider for MfWeights {
 
 ### `EvolvingProvider`（参数自优化）
 
-与 `AlgorithmProvider` 同为算法团队交付面，但不占路由单槽。由触发机制驱动，可多 job 并存。示意实现在 `test_algo::evolving::test_evolving`：骨架提供 `MfWeights`（`evolving-mf`），`fit` 返回空 `Artifact`。
+与 `AlgorithmProvider` 同为算法团队交付面，但不占路由单槽。由触发机制驱动，可多 job 并存。示意实现在 `test_algo::evolving`：骨架提供 `MfWeights`（`evolving-mf`），`fit` 返回空 `Artifact`。
 
 ### 与 runtime / state 的关系
 

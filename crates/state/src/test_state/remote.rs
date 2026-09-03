@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use openjiuwen_protocol::{Feedback, RoutingKey, StateView};
 
-use crate::state::StateProvider;
+use crate::StateProvider;
 
 /// 云侧 state 槽实现：硬超时 → 空视图，请求不失败。
 pub struct RemoteState {

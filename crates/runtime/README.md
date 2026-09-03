@@ -158,7 +158,7 @@ cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
 ```text
 宿主 → runtime::Router
          ├─ algorithms::AlgorithmProvider（decide）
-         └─ state::StateProvider（snapshot / report）
+         └─ openjiuwen_state::StateProvider（snapshot / report）
 二者之间没有直接调用；耦合点是 RouteContext.view。
 ```
 

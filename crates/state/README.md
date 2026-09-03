@@ -22,20 +22,18 @@ crates/state/
 ├── Cargo.toml
 ├── README.md
 └── src/
-    ├── lib.rs
-    ├── state/                        # 公共契约
-    │   ├── mod.rs                    # 再导出契约；声明 test_state
-    │   ├── state_provider.rs         # StateProvider trait + CasConflict
-    │   └── test_state/               # 内置实现
-    │       ├── mod.rs
-    │       ├── memory.rs             # 端侧：TTL + 容量上界
-    │       └── remote.rs             # 云侧客户端：超时降级（骨架）
+    ├── lib.rs                        # 统一公开导出
+    ├── state_provider.rs             # StateProvider trait + CasConflict
+    ├── test_state/                   # 测试/示意实现
+    │   ├── mod.rs
+    │   ├── memory.rs                 # 端侧：TTL + 容量上界
+    │   └── remote.rs                 # 云侧客户端：超时降级（骨架）
     └── service/
         ├── mod.rs                    # 独立状态服务占位（feature = service）
         └── main.rs                   # openjiuwen-state-service 入口
 ```
 
-布局与 `crates/algorithms/src/test_algo/` 对称：契约文件叫 `*_provider.rs`，内置实现放 `test_*`。
+公共契约位于 crate 根目录；`test_state/` 只存放测试或示意实现，与算法层的 `test_algo/` 分工一致。
 
 ## 快速开始
 
@@ -100,7 +98,7 @@ let state = MemoryState::new(Duration::from_secs(300), 1024);
 
 ### `StateProvider`（跨请求记忆）
 
-运行期单槽：一个 `Router` 只跑一个实现。候选由 profile `state.backend` 选定。内置实现在 `state::test_state`：
+运行期单槽：一个 `Router` 只跑一个实现。候选由 profile `state.backend` 选定。示意实现在 `test_state`：
 
 | 实现 | `backend` | 现状 |
 |------|------------|------|

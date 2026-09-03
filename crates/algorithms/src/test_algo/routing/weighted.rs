@@ -1,13 +1,13 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::test_algo::{AlgorithmProvider, RouteContext};
+use crate::{AlgorithmProvider, RouteContext};
 
-/// 规则级联。骨架阶段退化为直通。
-pub struct RuleCascade;
+/// 加权选择。骨架阶段退化为直通，权重表后续注入。
+pub struct Weighted;
 
-impl AlgorithmProvider for RuleCascade {
+impl AlgorithmProvider for Weighted {
     fn name(&self) -> &str {
-        "rule_cascade"
+        "weighted"
     }
 
     fn decide(&self, request: &RouteRequest, ctx: &RouteContext) -> Result<Decision, RouterError> {
@@ -15,7 +15,7 @@ impl AlgorithmProvider for RuleCascade {
         let model = available.first().ok_or(RouterError::NoTarget)?;
         Ok(Decision::answer(
             model,
-            "rule_cascade: stub, falls back to first target",
+            "weighted: stub, falls back to first target",
         ))
     }
 }

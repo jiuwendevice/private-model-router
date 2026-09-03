@@ -1,6 +1,6 @@
 use openjiuwen_protocol::{Decision, RouteRequest, RouterError};
 
-use crate::test_algo::{AlgorithmProvider, RouteContext};
+use crate::{AlgorithmProvider, RouteContext};
 
 /// 集成/混合。骨架阶段退化为直通。
 pub struct Ensemble;
