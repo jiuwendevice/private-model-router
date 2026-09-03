@@ -1,4 +1,4 @@
-"""使用随包默认的 ``test_algo.CostAwareAlgorithm``，不调用 ``register_algorithm``。"""
+"""使用随包默认的 ``test_algo.CostAwareAlgorithm``。"""
 
 from __future__ import annotations
 

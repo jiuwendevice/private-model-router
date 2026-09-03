@@ -65,7 +65,7 @@ pub fn lookup(name: &str) -> Option<Box<dyn AlgorithmProvider>> {
     Some(Box::new(PyAlgorithmAdapter::new(name.to_string(), obj)))
 }
 
-#[pyfunction]
+#[pyfunction(name = "_register_algorithm")]
 pub fn register_algorithm(obj: Bound<'_, PyAny>) -> PyResult<String> {
     let instance = convert::as_instance(&obj)?;
     if !instance.hasattr("decide")? {
@@ -91,11 +91,4 @@ pub fn register_algorithm(obj: Bound<'_, PyAny>) -> PyResult<String> {
     let mut map = py_algorithms().lock().unwrap_or_else(|e| e.into_inner());
     map.insert(name.clone(), instance.unbind());
     Ok(name)
-}
-
-/// 供 Router 热替换：从已注册或传入对象构造 trait 对象。
-pub fn adapter_from_obj(obj: Bound<'_, PyAny>) -> PyResult<Box<dyn AlgorithmProvider>> {
-    let instance = convert::as_instance(&obj)?;
-    let name = register_algorithm(instance.clone())?;
-    Ok(Box::new(PyAlgorithmAdapter::new(name, instance.unbind())))
 }

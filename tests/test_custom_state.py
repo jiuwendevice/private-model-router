@@ -89,33 +89,6 @@ def test_register_state_selected_by_backend_name():
     assert second.selected_model_id == "strong-cloud"
 
 
-def test_replace_state_with_python_provider():
-    pytest.importorskip("openjiuwen._openjiuwen")
-    from openjiuwen import Feedback, Router
-
-    router = Router.from_config(
-        {
-            "algorithm": "passthrough",
-            "state": {"backend": "memory"},
-            "targets": {"models": ["fast-local", "strong-cloud"]},
-        }
-    )
-    store = ExclusionStore()
-    router.replace_state(store)
-    req = {"session_id": "s-replace-state", "agent_id": "host"}
-    first = router.route_sync(req)
-    router.report_sync(
-        Feedback.ok(
-            first,
-            latency_ms=1,
-            session_id="s-replace-state",
-            agent_id="host",
-            outcome=Outcome.UNAVAILABLE,
-        )
-    )
-    assert router.route_sync(req).selected_model_id == "strong-cloud"
-
-
 def test_custom_state_works_with_python_algorithm():
     pytest.importorskip("openjiuwen._openjiuwen")
     from openjiuwen import Router

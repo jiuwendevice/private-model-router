@@ -85,14 +85,6 @@ impl Router {
         }
     }
 
-    pub fn replace_algorithm(&mut self, algorithm: Box<dyn AlgorithmProvider>) {
-        self.algorithm = algorithm;
-    }
-
-    pub fn replace_state(&mut self, state: Arc<dyn StateProvider>) {
-        self.state = state;
-    }
-
     /// 驱动决策循环。`hint` 携带 cache_affinity 等每请求输入。
     /// 返回的是 Result<Decision, RouterError> 类型。
     pub fn route(&self, req: &RouteRequest, hint: &RouteHint) -> Result<Decision, RouterError> {

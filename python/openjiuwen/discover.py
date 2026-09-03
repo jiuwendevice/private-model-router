@@ -11,7 +11,7 @@ import inspect
 import pkgutil
 import sys
 from types import ModuleType
-from typing import Any, Callable, List, Optional, Set, Type
+from typing import List, Set, Type
 
 from .algorithm_provider import AlgorithmProvider
 
@@ -51,13 +51,9 @@ def bundled_algorithms() -> List[Type[AlgorithmProvider]]:
     return found
 
 
-def install(register: Optional[Callable[[Any], str]] = None) -> List[str]:
-    """把发现的算法以无参实例写入 Rust 槽。"""
-    if register is None:
-        from openjiuwen import register_algorithm as register
-    if register is None:
-        return []
-    return [register(cls()) for cls in bundled_algorithms()]
+def install() -> List[str]:
+    """导入随包子包，让 ``AlgorithmProvider`` 子类在定义时写入槽位。"""
+    return [cls.name for cls in bundled_algorithms()]
 
 
 def _collect(

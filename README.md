@@ -90,7 +90,7 @@ cargo build -p openjiuwen-runtime
 maturin develop
 ```
 
-安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。远程状态走 profile `state.backend = "remote"`；自定义状态用 Python `StateProvider`（`state=` / `register_state` / `replace_state`）。`import openjiuwen` 会扫描并列子包中的随包 Python 算法并写入 Rust 槽；需要带参实例时再用 `register_algorithm` 覆盖。扩展未构建时，`AlgorithmProvider` 仍可单独导入。
+安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。远程状态走 profile `state.backend = "remote"`；自定义状态用 Python `StateProvider`（`state=` / `register_state`）。`import openjiuwen` 会扫描并列子包中的随包 Python 算法并写入 Rust 槽；包外 `AlgorithmProvider` 子类在 import 时同样按 `name` 登记（必须实现 `decide`、能无参构造）。扩展未构建时，`AlgorithmProvider` 仍可单独导入。
 
 ```python
 import openjiuwen
@@ -238,7 +238,7 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### Python 门面（`crates/py` + `python/openjiuwen`）
 
-PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、协议类型。反向绑定：`register_algorithm` / `register_state` 把 Python `AlgorithmProvider` / `StateProvider` 包装成 Rust trait。`discover` 扫描并列子包并在 `import openjiuwen` 时自动安装（demo 在 `test_algo/`）。
+PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、协议类型。反向绑定：`AlgorithmProvider` 子类定义时入槽，`register_state` 把 Python `StateProvider` 包装成 Rust trait。`discover` 扫描并列子包并在 `import openjiuwen` 时自动安装（demo 在 `test_algo/`）。
 
 ## 测试与检查
 
@@ -262,7 +262,7 @@ pytest tests/test_package.py tests/test_native_router.py
 - 五层 crate 目录与公开契约（`RouterProvider` / `AlgorithmProvider` / `StateProvider` / `Router`）；
 - `from_config` 装配算法槽与 state 槽；
 - passthrough 决策、memory 排除 hint、ReAct 集成测试；
-- Python 门面：`RouteRequest` / `ModelSelection` / `Feedback` 绑定，以及 `register_algorithm` / `register_state` 反向包装。
+- Python 门面：`RouteRequest` / `ModelSelection` / `Feedback` 绑定，以及 `AlgorithmProvider` 子类入槽 / `register_state` 反向包装。
 
 仍是骨架 / 未接线：
 

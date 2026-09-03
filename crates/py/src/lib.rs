@@ -92,17 +92,6 @@ impl PyRouter {
         self.inner
             .set_kv_coordinator(Box::new(PyKvCoordinator { cb: cb.unbind() }));
     }
-
-    fn replace_algorithm(&mut self, obj: Bound<'_, PyAny>) -> PyResult<()> {
-        let algo = adapter::adapter_from_obj(obj)?;
-        self.inner.replace_algorithm(algo);
-        Ok(())
-    }
-
-    fn replace_state(&mut self, state: Bound<'_, PyAny>) -> PyResult<()> {
-        self.inner.replace_state(extract_state(&state)?);
-        Ok(())
-    }
 }
 
 fn assemble(

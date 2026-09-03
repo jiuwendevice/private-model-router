@@ -7,7 +7,11 @@ from openjiuwen.test_algo2.last_available import LastAvailableAlgorithm
 
 
 def test_package_layout():
-    algo = CostAwareAlgorithm({"a": 2.0, "b": 1.0})
+    class PairCosts(CostAwareAlgorithm):
+        name = "package_layout_costs"
+        costs = {"a": 2.0, "b": 1.0}
+
+    algo = PairCosts()
     class _Ctx:
         targets = ["a", "b"]
     class _Req:

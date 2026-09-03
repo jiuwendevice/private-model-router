@@ -1,4 +1,4 @@
-"""演示：安装 wheel 后自己注册算法，再走 Rust runtime。
+"""演示：安装 wheel 后导入自己的 AlgorithmProvider 子类，再走 Rust runtime。
 
     python python/custom_test_algo/run_custom_algorithm.py
 """
@@ -9,13 +9,10 @@ import tempfile
 from pathlib import Path
 
 from custom_test_algo import PreferFirstAlgorithm
-from openjiuwen import Router, register_algorithm
+from openjiuwen import Router
 
 
 def main() -> None:
-    algorithm = PreferFirstAlgorithm()
-    register_algorithm(algorithm)
-
     with tempfile.TemporaryDirectory() as directory:
         config = Path(directory) / "custom-algorithm.toml"
         config.write_text(
@@ -35,6 +32,7 @@ models = ["fast-expensive", "slow-cheap"]
                 decision.selected_model_id, decision.reasoning
             )
         )
+        assert router.algorithm_name() == PreferFirstAlgorithm.name
 
 
 if __name__ == "__main__":

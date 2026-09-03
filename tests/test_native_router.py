@@ -4,7 +4,6 @@ import pytest  # type: ignore[import-not-found]
 
 pytest.importorskip("openjiuwen._openjiuwen")
 
-import openjiuwen
 from openjiuwen import Feedback, Message, Outcome, RequestMetadata, RouteHint, RouteRequest, Router
 
 
@@ -64,21 +63,22 @@ def test_async_route_and_report():
     asyncio.run(body())
 
 
-def test_python_algorithm_register_and_replace():
+def test_python_algorithm_subclass_routes():
     from openjiuwen.test_algo.cost_aware import CostAwareAlgorithm
 
-    algo = CostAwareAlgorithm({"alpha": 1.0, "beta": 10.0})
-    openjiuwen.register_algorithm(algo)
+    class AlphaBeta(CostAwareAlgorithm):
+        name = "python_alpha_beta"
+        costs = {"alpha": 1.0, "beta": 10.0}
+
     router = Router.from_toml(
         """
-algorithm = "python_cost_aware"
+algorithm = "python_alpha_beta"
 [state]
 backend = "memory"
 [targets]
 models = ["alpha", "beta"]
 """
     )
-    router.replace_algorithm(algo)
     decision = router.route_sync({"exclusions": ["alpha"]})
     assert decision.selected_model_id == "beta"
     assert "python_cost_aware" in decision.reasoning

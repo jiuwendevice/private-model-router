@@ -129,7 +129,6 @@ cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
 |------|------|
 | `from_config` / `from_toml` / `from_profile` | 启动期装配，失败为 `RouterError::Config` |
 | `from_parts` / `state_from_profile` | 用已构造的算法与 state 装配；供 PyO3 注入 |
-| `replace_algorithm` / `replace_state` | 运行期替换插件槽 |
 | `route` | 决策循环；返回 `Decision`（Rust 原生路径）。`RouterProvider::route` 再投影为 `ModelSelection` |
 | `report` | 转发 `StateProvider::report`；骨架为同步写入 |
 | `with_kv_coordinator` / `set_kv_coordinator` | 注册切换回调；骨架只保存，`route` 尚未触发 `on_switch` |

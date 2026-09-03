@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Union
 
-from .algorithm_provider import Algorithm, AlgorithmProvider, check_purity
+from .algorithm_provider import Algorithm, AlgorithmProvider, bind_register, check_purity
 from .state_provider import StateProvider
 
 __all__ = [
@@ -30,7 +30,6 @@ __all__ = [
     "Feedback",
     "StateView",
     "RouteContext",
-    "register_algorithm",
     "register_state",
     "Outcome",
 ]
@@ -56,10 +55,11 @@ if TYPE_CHECKING:
         RouteRequest,
         RoutingKey,
         StateView,
-        register_algorithm,
         register_state,
         Router as NativeRouter,
     )
+
+    _register_algorithm = None
 else:
     try:
         from ._openjiuwen import (
@@ -72,7 +72,7 @@ else:
             RouteRequest,
             RoutingKey,
             StateView,
-            register_algorithm,
+            _register_algorithm,
             register_state,
             Router as NativeRouter,
         )
@@ -87,7 +87,7 @@ else:
         RouteRequest = None  # type: ignore[misc, assignment]
         RoutingKey = None  # type: ignore[misc, assignment]
         StateView = None  # type: ignore[misc, assignment]
-        register_algorithm = None  # type: ignore[misc, assignment]
+        _register_algorithm = None  # type: ignore[misc, assignment]
         register_state = None  # type: ignore[misc, assignment]
 
 
@@ -139,16 +139,9 @@ class Router:
         self._native.with_kv_coordinator(cb)
         return self
 
-    def replace_algorithm(self, obj: Any) -> Router:
-        self._native.replace_algorithm(obj)
-        return self
 
-    def replace_state(self, state: Any) -> Router:
-        self._native.replace_state(state)
-        return self
-
-
-if register_algorithm is not None:
+bind_register(_register_algorithm)
+if _register_algorithm is not None:
     from .discover import install as _install_bundled_algorithms
 
-    _install_bundled_algorithms(register_algorithm)
+    _install_bundled_algorithms()

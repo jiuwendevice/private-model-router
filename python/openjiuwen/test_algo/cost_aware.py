@@ -3,28 +3,28 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping
 
 from ..algorithm_provider import AlgorithmProvider
 
 
 class CostAwareAlgorithm(AlgorithmProvider):
-    """从 Rust runtime 提供的候选目标中选择成本最低者。"""
+    """从 Rust runtime 提供的候选目标中选择成本最低者。
+
+    成本表是类属性；换表就再写一个子类，不要给构造函数传参。
+    """
 
     name = "python_cost_aware"
-
-    def __init__(self, costs: Optional[Mapping[str, float]] = None) -> None:
-        # 只读配置；decide 不修改 self，不读时钟，不做 I/O。
-        self._costs = MappingProxyType(dict(costs or ()))
+    costs: Mapping[str, float] = MappingProxyType({})
 
     def decide(self, request: Any, ctx: Any):
-        del request  # 该策略只需要已过滤的目标集。
+        del request
         if not ctx.targets:
             raise ValueError("no available target")
-
+        table = type(self).costs
         selected = min(
             ctx.targets,
-            key=lambda target: (self._costs.get(target, float("inf")), target),
+            key=lambda target: (table.get(target, float("inf")), target),
         )
         return {
             "selected_model_id": selected,

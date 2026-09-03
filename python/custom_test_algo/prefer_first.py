@@ -8,7 +8,7 @@ from openjiuwen import AlgorithmProvider
 
 
 class PreferFirstAlgorithm(AlgorithmProvider):
-    """不随包自动安装；由宿主 ``register_algorithm`` 写入槽位。"""
+    """包外算法：导入本类即按 ``name`` 写入槽位。"""
 
     name = "custom_prefer_first"
 

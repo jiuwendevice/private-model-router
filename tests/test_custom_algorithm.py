@@ -19,15 +19,12 @@ def test_custom_algorithm_is_pure():
     assert decision["selected_model_id"] == "fast-expensive"
 
 
-def test_custom_algorithm_register_then_route(tmp_path):
+def test_custom_algorithm_auto_registers_on_import(tmp_path):
     pytest.importorskip(
         "openjiuwen._openjiuwen",
         reason="run `maturin develop` before the PyO3 integration test",
     )
-    from openjiuwen import Router, register_algorithm
-
-    algorithm = PreferFirstAlgorithm()
-    assert register_algorithm(algorithm) == "custom_prefer_first"
+    from openjiuwen import Router
 
     config = tmp_path / "custom-algorithm.toml"
     config.write_text(
@@ -43,6 +40,6 @@ models = ["fast-expensive", "slow-cheap"]
 
     router = Router.from_config(str(config))
     decision = router.route_sync({})
-    assert router.algorithm_name() == algorithm.name
+    assert router.algorithm_name() == PreferFirstAlgorithm.name
     assert decision.selected_model_id == "fast-expensive"
     assert decision.reasoning == "custom_prefer_first: first remaining target"
