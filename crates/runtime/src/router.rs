@@ -40,33 +40,54 @@ impl Router {
     /// 从配置文件创建路由实例。返回的是 Result<Router, RouterError> 类型。
     pub fn from_profile(profile: RouterProfile) -> Result<Self, RouterError> {
         let algorithm = registry::create_algorithm(&profile.algorithm)?;
-        let state: Arc<dyn StateProvider> = match profile.state.backend.as_str() {
-            // 内存状态实现。
+        let state = Self::state_from_profile(&profile)?;
+        Ok(Self::from_parts(
+            algorithm,
+            state,
+            TargetSet::new(profile.targets.models),
+        ))
+    }
+
+    /// 按 profile 装配 state 槽。供 PyO3 在注入 StateClient 或 Python 算法时复用。
+    pub fn state_from_profile(profile: &RouterProfile) -> Result<Arc<dyn StateProvider>, RouterError> {
+        match profile.state.backend.as_str() {
             "memory" => {
                 let ttl: Duration = Duration::from_secs(profile.state.ttl_secs.unwrap_or(300));
                 let cap = profile.state.max_entries.unwrap_or(1024);
-                Arc::new(MemoryState::new(ttl, cap))
+                Ok(Arc::new(MemoryState::new(ttl, cap)))
             }
-            // 远程状态实现。必须在 profile 里给出 endpoint，不内置默认地址。
             "remote" => {
                 let endpoint = profile.state.endpoint.clone().ok_or_else(|| {
                     RouterError::Config("remote state requires endpoint".into())
                 })?;
                 let timeout = Duration::from_millis(profile.state.timeout_ms.unwrap_or(5));
-                Arc::new(RemoteState::new(endpoint, timeout))
+                Ok(Arc::new(RemoteState::new(endpoint, timeout)))
             }
-            other => {
-                return Err(RouterError::Config(format!("unknown state backend: {other}")));
-            }
-        };
-        let targets: TargetSet = TargetSet::new(profile.targets.models);
-        Ok(Self {
+            other => Err(RouterError::Config(format!("unknown state backend: {other}"))),
+        }
+    }
+
+    /// 用已构造的算法与 state 装配。PyO3 可注入 Python 算法或 StateClient。
+    pub fn from_parts(
+        algorithm: Box<dyn Algorithm>,
+        state: Arc<dyn StateProvider>,
+        targets: TargetSet,
+    ) -> Self {
+        Self {
             algorithm,
             state,
             targets,
             seed: AtomicU64::new(0),
             kv_coordinator: None,
-        })
+        }
+    }
+
+    pub fn replace_algorithm(&mut self, algorithm: Box<dyn Algorithm>) {
+        self.algorithm = algorithm;
+    }
+
+    pub fn replace_state(&mut self, state: Arc<dyn StateProvider>) {
+        self.state = state;
     }
 
     /// 驱动决策循环。`hint` 携带 cache_affinity 等每请求输入。
@@ -89,8 +110,12 @@ impl Router {
     }
 
     pub fn with_kv_coordinator(mut self, cb: Box<dyn KvCacheCoordinator>) -> Self {
-        self.kv_coordinator = Some(cb);
+        self.set_kv_coordinator(cb);
         self
+    }
+
+    pub fn set_kv_coordinator(&mut self, cb: Box<dyn KvCacheCoordinator>) {
+        self.kv_coordinator = Some(cb);
     }
 
     pub fn algorithm_name(&self) -> &str {

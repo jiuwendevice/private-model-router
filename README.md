@@ -88,12 +88,28 @@ cargo build -p openjiuwen-runtime
 maturin develop
 ```
 
-安装后可以使用 `openjiuwen` 包。该包重导出 PyO3 扩展 `_openjiuwen` 中的 `Router` / `Decision`；扩展未构建时，内置 Python 算法与 `contrib.PyAlgorithm` 仍可单独导入。
+安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。`StateClient` 可覆盖 profile 的 remote state。`register_algorithm` 把 `contrib.PyAlgorithm` 注册进与 Rust 算法同一槽位。扩展未构建时，内置 Python 算法与 `contrib.PyAlgorithm` 仍可单独导入。
 
-运行 Python 包布局冒烟（需已安装 pytest，并把 `python/` 加入 `PYTHONPATH`）：
+```python
+import openjiuwen
+from openjiuwen import Feedback, Outcome, Router
+
+router = Router.from_config("config/cloud.toml")
+# 或 Router.from_config({"algorithm": "passthrough", "state": {"backend": "memory"}, "targets": {"models": ["a"]}})
+
+decision = await router.route({
+    "messages": [{"role": "user", "content": "hi"}],
+    "session_id": "s1",
+    "agent_id": "host",
+})
+# 宿主自己调用 decision.selected_model_id
+await router.report(Feedback.ok(decision, latency_ms=12, session_id="s1", agent_id="host"))
+```
+
+Python 测试（`tests/test_package.py` 不需要扩展；`tests/test_native_router.py` 需要已安装的 `_openjiuwen`）：
 
 ```bash
-pytest tests/test_package.py
+pytest tests/test_package.py tests/test_native_router.py
 ```
 
 ## 样例 1：Rust 原生宿主
@@ -163,10 +179,15 @@ models = ["local-default"]
 
 ## 样例 2：最小 ReAct 宿主验证路由
 
-[`tests/react_agent.rs`](tests/react_agent.rs) 是一个最小 ReAct 宿主：Thought → Action → Observation → Final Answer。每一次模型调用前 `route`，调用后 `report`。模型由 mock 扮演，不发真实网络。
+每一次模型调用前 `route`，调用后 `report`。模型由 mock 扮演，不发真实网络。循环是 Thought → Action → Observation → Final Answer。
+
+- Rust 宿主：[`tests/react_agent.rs`](tests/react_agent.rs)
+- Python 宿主（经 `python/openjiuwen` 调同一套 Rust `Router`）：[`python/openjiuwen/react_agent.py`](python/openjiuwen/react_agent.py)
 
 ```bash
 cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
+python -m openjiuwen.react_agent
+pytest tests/test_react_agent.py
 ```
 
 剧本：
@@ -215,7 +236,7 @@ test react_agent_routes_retries_and_answers ... ok
 
 ### Python 门面（`crates/py` + `python/openjiuwen`）
 
-PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。`contrib.PyAlgorithm` 是外部团队供稿 SDK；内置 Python 算法与 Rust 同名，构建时按算法名去重。
+PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python 算法包装成 `Algorithm` trait。`contrib.PyAlgorithm` 是外部团队供稿 SDK；内置 Python 算法与 Rust 同名。
 
 ## 测试与检查
 
@@ -226,10 +247,10 @@ cargo test
 cargo test -p openjiuwen-runtime --test react_agent -- --nocapture
 ```
 
-Python 包布局冒烟：
+Python 测试：
 
 ```bash
-pytest tests/test_package.py
+pytest tests/test_package.py tests/test_native_router.py
 ```
 
 ## 当前进度
@@ -238,14 +259,14 @@ pytest tests/test_package.py
 
 - 五层 crate 目录与公开契约（`Algorithm` / `StateProvider` / `Router`）；
 - `from_config` 装配算法槽与 state 槽；
-- passthrough 决策、memory 排除 hint、ReAct 集成测试。
+- passthrough 决策、memory 排除 hint、ReAct 集成测试；
+- Python 门面：`RouteRequest` / `ModelSelection` / `Feedback` / `StateClient` 绑定，以及 `register_algorithm` 反向包装。
 
 仍是骨架 / 未接线：
 
 - `weighted` / `signal` / `ensemble` / `rule_cascade` 目前退化为「选第一个」；
 - `RemoteState` 尚未真正发 gRPC（超时降级为空视图）；
 - `[[evolving]]` 能解析，但未挂到 `Trigger` / `TrainingJob`；
-- Python 门面需 `maturin develop`；`Feedback` / `StateClient` 的 PyO3 绑定未完成；
 - `report` 在 `memory` 后端下是同步写入，蓝图中的异步旁路尚未做。
 
 ## 贡献

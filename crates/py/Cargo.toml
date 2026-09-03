@@ -12,5 +12,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 openjiuwen-protocol.workspace = true
+openjiuwen-state.workspace = true
+openjiuwen-algorithms = { workspace = true }
 openjiuwen-runtime = { workspace = true }
 pyo3 = { workspace = true }
