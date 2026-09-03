@@ -38,8 +38,8 @@ model-router/
 │   ├── runtime/                    # L4 装配与运行：Router 门面
 │   └── py/                         # L5 PyO3 绑定（cdylib `_openjiuwen`）
 ├── python/
-│   ├── openjiuwen/                 # 云侧 Python 门面与算法契约
-│   └── test_algo/                  # Python 测试算法（经 PyO3 回接 Rust）
+│   ├── openjiuwen/                 # 云侧 Python 门面、算法契约、随包算法 demo
+│   └── custom_test_algo/           # 安装 wheel 后自定义算法并自行注册
 ├── config/
 │   ├── edge.toml                   # 端侧：memory 进程内
 │   └── cloud.toml                  # 云侧：remote state
@@ -90,7 +90,7 @@ cargo build -p openjiuwen-runtime
 maturin develop
 ```
 
-安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。`StateClient` 可覆盖 profile 的 remote state。`register_algorithm` 把 `AlgorithmProvider` 子类注册进与 Rust 算法同一槽位。扩展未构建时，`test_algo` 与 `AlgorithmProvider` 仍可单独导入。
+安装后可以使用 `openjiuwen` 包。`Router.from_config` 接受路径或 dict；`route` / `report` 在 Python 侧是 async，同步内核仍在 Rust。跨边界类型是 `RouteRequest`、`ModelSelection`（别名 `Decision`）、`Feedback`。`StateClient` 可覆盖 profile 的 remote state。`import openjiuwen` 会扫描并列子包中的随包 Python 算法并写入 Rust 槽；需要带参实例时再用 `register_algorithm` 覆盖。扩展未构建时，`AlgorithmProvider` 仍可单独导入。
 
 ```python
 import openjiuwen
@@ -236,9 +236,9 @@ test react_agent_routes_retries_and_answers ... ok
 
 宿主只看 `Router`（实现 `RouterProvider`）。`from_config` 装配两个插件槽；`route` 驱动 snapshot → decide；`report` 转发 state。`RouterProvider` 与 `Router` 同在本层。`Trigger` / `TrainingJob` 类型已占位，尚未挂到装配路径。
 
-### Python 门面（`crates/py` + `python/openjiuwen` + `python/test_algo`）
+### Python 门面（`crates/py` + `python/openjiuwen`）
 
-PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python `AlgorithmProvider` 包装成 Rust trait。测试实现在顶层包 `test_algo`。
+PyO3 扩展 `_openjiuwen` 与用户面包 `openjiuwen`。正向绑定：`from_config(path|dict)`、`route`、`report`、`StateClient`、协议类型。反向绑定：`register_algorithm` 把 Python `AlgorithmProvider` 包装成 Rust trait。`discover` 扫描并列子包并在 `import openjiuwen` 时自动安装（demo 在 `test_algo/`）。
 
 ## 测试与检查
 

@@ -65,7 +65,7 @@ def test_async_route_and_report():
 
 
 def test_python_algorithm_register_and_replace():
-    from test_algo import CostAwareAlgorithm
+    from openjiuwen.test_algo.cost_aware import CostAwareAlgorithm
 
     algo = CostAwareAlgorithm({"alpha": 1.0, "beta": 10.0})
     openjiuwen.register_algorithm(algo)

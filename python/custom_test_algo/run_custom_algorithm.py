@@ -1,25 +1,26 @@
-"""运行一次 Python 算法 -> PyO3 -> Rust runtime -> Python 的完整链路。"""
+"""演示：安装 wheel 后自己注册算法，再走 Rust runtime。
+
+    python python/custom_test_algo/run_custom_algorithm.py
+"""
 
 from __future__ import annotations
 
 import tempfile
 from pathlib import Path
 
-from cost_aware_algorithm import CostAwareAlgorithm
+from custom_test_algo import PreferFirstAlgorithm
 from openjiuwen import Router, register_algorithm
 
 
 def main() -> None:
-    algorithm = CostAwareAlgorithm(
-        {"fast-expensive": 10.0, "slow-cheap": 1.0}
-    )
+    algorithm = PreferFirstAlgorithm()
     register_algorithm(algorithm)
 
     with tempfile.TemporaryDirectory() as directory:
-        config = Path(directory) / "python-algorithm.toml"
+        config = Path(directory) / "custom-algorithm.toml"
         config.write_text(
             """
-algorithm = "python_cost_aware"
+algorithm = "custom_prefer_first"
 [state]
 backend = "memory"
 [targets]

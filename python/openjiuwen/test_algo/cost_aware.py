@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
-from openjiuwen import AlgorithmProvider
+from ..algorithm_provider import AlgorithmProvider
 
 
 class CostAwareAlgorithm(AlgorithmProvider):
@@ -13,9 +13,9 @@ class CostAwareAlgorithm(AlgorithmProvider):
 
     name = "python_cost_aware"
 
-    def __init__(self, costs: Mapping[str, float]) -> None:
+    def __init__(self, costs: Optional[Mapping[str, float]] = None) -> None:
         # 只读配置；decide 不修改 self，不读时钟，不做 I/O。
-        self._costs = MappingProxyType(dict(costs))
+        self._costs = MappingProxyType(dict(costs or ()))
 
     def decide(self, request: Any, ctx: Any):
         del request  # 该策略只需要已过滤的目标集。

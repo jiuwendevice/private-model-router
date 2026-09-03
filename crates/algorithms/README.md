@@ -40,7 +40,7 @@ crates/algorithms/
             └── mf.rs                 # MfWeights：fit 纯重算（骨架）
 ```
 
-Python 契约在 `python/openjiuwen/algorithm_provider.py`，Python 测试算法集中在 `python/test_algo/`。
+Python 契约在 `python/openjiuwen/algorithm_provider.py`，发现逻辑在 `python/openjiuwen/discover.py`；外部团队实现放在并列子包（如 `test_algo/`）。
 
 ## 快速开始
 

@@ -1,7 +1,8 @@
 """openjiuwen — 云侧 Python 门面。
 
 Router / 协议类型由 PyO3 扩展 `_openjiuwen` 重导出；扩展未构建时包仍可导入，
-`AlgorithmProvider` 可独立使用。
+`AlgorithmProvider` 可独立使用。`discover` 扫描并列子包中的随包 Python 算法，
+`import openjiuwen` 时自动写入 Rust 槽。
 
 `route` / `report` 在 Python 侧是 async（蓝图云侧门面）；同步内核仍在 Rust。
 """
@@ -92,6 +93,7 @@ Decision = ModelSelection
 
 
 def _require_native():
+    """确保 native extension 已构建。"""
     if NativeRouter is None:
         raise ImportError(
             "native extension `_openjiuwen` is not built; run `maturin develop`"
@@ -142,3 +144,9 @@ class Router:
     def replace_state(self, state: Any) -> Router:
         self._native.replace_state(state)
         return self
+
+
+if register_algorithm is not None:
+    from .discover import install as _install_bundled_algorithms
+
+    _install_bundled_algorithms(register_algorithm)

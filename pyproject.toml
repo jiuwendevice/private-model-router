@@ -16,6 +16,7 @@ features = ["extension-module"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["python"]
 
 [tool.pyright]
 include = ["python", "tests"]
